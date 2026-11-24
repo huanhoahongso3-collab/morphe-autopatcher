@@ -63,14 +63,17 @@ jobs:
           mv tools/APKEditor-*.jar tools/apkeditor.jar
           gh release download -R kiber-io/apkdgo --pattern 'apkd-*-linux-amd64' --dir tools
           mv tools/apkd-*-linux-amd64 tools/apkd
-          gh release download -R AzimsTech/apkmirror-downloader --pattern apkmd --dir tools
           gh release download -R EFForg/apkeep --pattern apkeep-x86_64-unknown-linux-gnu --dir tools
           mv tools/apkeep-x86_64-unknown-linux-gnu tools/apkeep
-          mv tools/apkmd tools/apkmd-azims
-          gh release download -R tanishqmanuja/apkmirror-downloader --pattern apkmd --dir tools --clobber
-          mv tools/apkmd tools/apkmd-orig
-          mv tools/apkmd-azims tools/apkmd
-          chmod +x tools/apkd tools/apkmd tools/apkmd-orig tools/apkeep
+          # three independent APKMirror clients, each in its own folder
+          mkdir -p tools/_a tools/_o tools/_f
+          gh release download -R AzimsTech/apkmirror-downloader --pattern apkmd --dir tools/_a
+          gh release download -R tanishqmanuja/apkmirror-downloader --pattern apkmd --dir tools/_o || true
+          gh release download -R DeNcHiK3713/apkmirror-downloader --pattern apkmd --dir tools/_f || true
+          mv tools/_a/apkmd tools/apkmd
+          [ -f tools/_o/apkmd ] && mv tools/_o/apkmd tools/apkmd-orig || true
+          [ -f tools/_f/apkmd ] && mv tools/_f/apkmd tools/apkmd-fork || true
+          chmod +x tools/apkd tools/apkmd tools/apkeep tools/apkmd-orig tools/apkmd-fork 2>/dev/null || true
 
       - name: Install justapk
         run: pip install justapk
@@ -85,7 +88,7 @@ jobs:
             python3 scripts/build_app.py --app "$id" --out "artifacts/app-$id" \
               --work "work/$id" --prev prev/versions.json \
               --cli tools/morphe.jar --editor tools/apkeditor.jar \
-              --apkd tools/apkd --apkeep tools/apkeep --apkmd tools/apkmd --apkmd-orig tools/apkmd-orig \
+              --apkd tools/apkd --apkeep tools/apkeep --apkmd tools/apkmd --apkmd-orig tools/apkmd-orig --apkmd-fork tools/apkmd-fork \
               ${{ inputs.force && '--force' || '' }} || true
             cat "artifacts/app-$id/status.json" 2>/dev/null || true
             echo "::endgroup::"

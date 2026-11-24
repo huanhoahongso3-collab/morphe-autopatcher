@@ -67,15 +67,15 @@ def download_stock(app, version, vcode, work, dl_tools):
         _fresh(dl)
         try:
             run(cmd)
-        except subprocess.CalledProcessError as e:
+        except (subprocess.CalledProcessError, OSError) as e:
             errors.append(f"{label}: {e}")
             return None
         return _first_file(dl, prefix)
 
     # 1) APKMirror, two independent clients, normal requests, each retried (it fails at random)
     src = app["apkmirror"]
-    for tool in ("apkmirror", "apkmirror_orig"):
-        if not dl_tools.get(tool):
+    for tool in ("apkmirror", "apkmirror_orig", "apkmirror_fork"):
+        if not dl_tools.get(tool) or not os.path.exists(dl_tools[tool]):
             continue
         for typ in ("apk", "bundle"):
             for n in range(2):
@@ -178,6 +178,7 @@ def main():
     ap.add_argument("--apkd", required=True)
     ap.add_argument("--apkeep", required=True)
     ap.add_argument("--apkmd-orig", default="")
+    ap.add_argument("--apkmd-fork", default="")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--version", default="", help="pin stock app version")
     a = ap.parse_args()
@@ -207,7 +208,7 @@ def main():
             # same patches: only look at builds newer than what we already ship (never downgrade)
             cands = [c for c in cands if vkey(c[0]) > vkey(prev["appVersion"])] or cands[:1]
 
-        tools = {"apkeep": a.apkeep, "apkd": a.apkd, "apkmirror": a.apkmd, "apkmirror_orig": a.apkmd_orig}
+        tools = {"apkeep": a.apkeep, "apkd": a.apkd, "apkmirror": a.apkmd, "apkmirror_orig": a.apkmd_orig, "apkmirror_fork": a.apkmd_fork}
         stock = provider = None
         for version, vcode in cands:
             print(f"::group::try {app['id']} {version}", flush=True)
