@@ -52,6 +52,17 @@ def supported_version(cli_jar, bundle, package):
 def download_stock(app, version, vcode, work, dl_tools):
     dl = Path(work) / "dl"
     errors = []
+    # 0) apkeep (EFF) from APKPure, pinned by version name, then latest
+    for spec in (f"{app['package']}@{version}", app["package"]):
+        shutil.rmtree(dl, ignore_errors=True)
+        dl.mkdir(parents=True, exist_ok=True)
+        try:
+            run([dl_tools["apkeep"], "-a", spec, "-d", "apk-pure", str(dl)])
+            found = [p for p in glob.glob(str(dl / "*")) if os.path.isfile(p)]
+            if found:
+                return found[0], "apkpure"
+        except subprocess.CalledProcessError as e:
+            errors.append(f"apkeep/{spec}: {e}")
     # 1) apkdgo (APKPure, then APKCombo) pinned by version code, then unpinned
     for source in ("apkcombo",):
         for pkg in ([f"{app['package']}:{vcode}"] if vcode else []) + [app["package"]]:
@@ -125,6 +136,7 @@ def main():
     ap.add_argument("--editor", required=True)
     ap.add_argument("--apkmd", required=True)
     ap.add_argument("--apkd", required=True)
+    ap.add_argument("--apkeep", required=True)
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--version", default="", help="pin stock app version")
     a = ap.parse_args()
@@ -150,7 +162,7 @@ def main():
             status(status="skipped", reason="no change", patchesVersion=tag, appVersion=version)
             return
 
-        stock, provider = download_stock(app, version, vcode, work, {"apkd": a.apkd, "apkmirror": a.apkmd})
+        stock, provider = download_stock(app, version, vcode, work, {"apkeep": a.apkeep, "apkd": a.apkd, "apkmirror": a.apkmd})
         stock = ensure_apk(stock, work, a.editor)
 
         patched = str(work / "patched.apk")
