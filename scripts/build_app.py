@@ -282,6 +282,16 @@ def main():
         if not stock:
             raise SystemExit("no source could provide any of: " + ", ".join(v for v, _ in cands))
         stock = ensure_apk(stock, work, a.editor)
+        # never patch (or cache) a base APK that is not the version we asked for
+        try:
+            _, sc, sn = badging(stock)
+            bad = (sc != int(vcode)) if vcode else (sn != version)
+        except Exception:
+            bad = False
+        if bad and not app.get("any_version"):
+            for old in glob.glob(str(STOCK_CACHE / f"{app['id']}-*")):
+                os.remove(old)
+            raise SystemExit(f"downloaded base APK is {sn} ({sc}), not the wanted {version}")
 
         patched = str(work / "patched.apk")
         # default patch set, plus any patches the app config forces on (e.g. GmsCore support)
