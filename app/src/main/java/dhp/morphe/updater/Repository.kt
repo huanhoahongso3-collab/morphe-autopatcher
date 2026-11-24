@@ -99,6 +99,7 @@ object Repository {
                     else -> Status.UP_TO_DATE
                 },
                 inst?.first, a.appVersion, savedP, a.patchesVersion, url(a.asset), a.sha256, a.size,
+                patchesRepo = a.patchesRepo,
             )
         }
         items

@@ -46,4 +46,5 @@ data class Item(
     val size: Long,
     val progress: Float? = null,     // null = idle, 0..1 downloading, -1 = installing
     val error: String? = null,
+    val patchesRepo: String = "",    // GitHub "owner/repo" of the patch bundle used for this app
 )

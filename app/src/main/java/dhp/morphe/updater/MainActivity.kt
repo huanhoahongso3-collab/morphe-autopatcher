@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -108,6 +109,17 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
             ) {
                 st.error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
                 items(st.items, key = { it.id }) { ItemCard(it, onAction = { vm.update(it) }) }
+                item {
+                    Text(
+                        BuildConfig.GITHUB_REPO,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp).clickable {
+                            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/${BuildConfig.GITHUB_REPO}")))
+                        },
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                }
             }
         }
     }
@@ -139,6 +151,17 @@ fun ItemCard(item: Item, onAction: () -> Unit) {
             Text(versionLine("App", item.installedApp, item.availableApp), style = MaterialTheme.typography.bodyMedium)
             item.availablePatches?.let {
                 Text(versionLine("Patches", item.installedPatches, it), style = MaterialTheme.typography.bodyMedium)
+            }
+            if (item.patchesRepo.isNotEmpty()) {
+                val c = LocalContext.current
+                Text(
+                    "Patches from ${item.patchesRepo}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable {
+                        c.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/${item.patchesRepo}")))
+                    },
+                )
             }
             item.progress?.takeIf { it in 0f..1f }?.let { LinearWavyProgressIndicator(progress = { it }, modifier = Modifier.fillMaxWidth()) }
             item.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
