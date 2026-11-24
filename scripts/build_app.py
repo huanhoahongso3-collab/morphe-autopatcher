@@ -4,7 +4,7 @@
 Writes <out>/status.json  ({"status": "built"|"skipped"|"failed", ...})
 and, when built, <out>/<asset>.apk + <out>/meta.json.
 """
-import argparse, fnmatch, glob, hashlib, json, os, re, subprocess, sys, zipfile
+import argparse, fnmatch, glob, hashlib, json, os, re, shutil, subprocess, sys, zipfile
 from pathlib import Path
 
 
@@ -37,17 +37,37 @@ def supported_version(cli_jar, bundle, package):
     out = subprocess.check_output(
         ["java", "-jar", cli_jar, "list-versions", "--patches", bundle, "-f", package], text=True)
     print(out)
-    vers = set(re.findall(r"\d+(?:\.\d+){2,}", out))
-    if not vers:
+    found = {}
+    for m in re.finditer(r"(\d+(?:\.\d+){2,})\s*\[versionCodes:([^\]]*)\]", out):
+        code = re.search(r"ARM64_V8A=(\d+)", m.group(2)) or re.search(r"=(\d+)", m.group(2))
+        found[m.group(1)] = code.group(1) if code else ""
+    for v in re.findall(r"\d+(?:\.\d+){2,}", out):
+        found.setdefault(v, "")
+    if not found:
         raise SystemExit("could not determine supported versions from list-versions output")
-    return max(vers, key=vkey)
+    best = max(found, key=vkey)
+    return best, found[best]
 
 
-def download_stock(app, version, work, dl_tools):
+def download_stock(app, version, vcode, work, dl_tools):
     dl = Path(work) / "dl"
-    dl.mkdir(parents=True, exist_ok=True)
     errors = []
-    for provider in ("apkmirror", "apkcombo"):
+    # 1) apkdgo (APKPure, then APKCombo) pinned by version code, then unpinned
+    for source in ("apkpure", "apkcombo"):
+        for pkg in ([f"{app['package']}:{vcode}"] if vcode else []) + [app["package"]]:
+            shutil.rmtree(dl, ignore_errors=True)
+            dl.mkdir(parents=True, exist_ok=True)
+            try:
+                run([dl_tools["apkd"], "-s", source, "-p", pkg, "-O", str(dl), "-F"])
+                found = [p for p in glob.glob(str(dl / "*")) if os.path.isfile(p)]
+                if found:
+                    return found[0], source
+            except subprocess.CalledProcessError as e:
+                errors.append(f"{source}/{pkg}: {e}")
+    # 2) legacy APKMirror downloader (works only where APKMirror allows the client)
+    shutil.rmtree(dl, ignore_errors=True)
+    dl.mkdir(parents=True, exist_ok=True)
+    for provider in ("apkmirror",):
         src = app[provider]
         spec = {
             "options": {"outDir": str(dl), "overwrite": True},
@@ -104,7 +124,7 @@ def main():
     ap.add_argument("--cli", required=True)
     ap.add_argument("--editor", required=True)
     ap.add_argument("--apkmd", required=True)
-    ap.add_argument("--apkcd", required=True)
+    ap.add_argument("--apkd", required=True)
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--version", default="", help="pin stock app version")
     a = ap.parse_args()
@@ -121,7 +141,7 @@ def main():
     try:
         tag = gh_tag(app["bundle_repo"])
         bundle = gh_download(app["bundle_repo"], app["bundle_asset"], work, tag)
-        version = a.version or supported_version(a.cli, bundle, app["package"])
+        version, vcode = (a.version, "") if a.version else supported_version(a.cli, bundle, app["package"])
 
         prev = {}
         if os.path.exists(a.prev):
@@ -130,7 +150,7 @@ def main():
             status(status="skipped", reason="no change", patchesVersion=tag, appVersion=version)
             return
 
-        stock, provider = download_stock(app, version, work, {"apkmirror": a.apkmd, "apkcombo": a.apkcd})
+        stock, provider = download_stock(app, version, vcode, work, {"apkd": a.apkd, "apkmirror": a.apkmd})
         stock = ensure_apk(stock, work, a.editor)
 
         patched = str(work / "patched.apk")
