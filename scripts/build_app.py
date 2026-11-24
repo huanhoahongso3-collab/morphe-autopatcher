@@ -268,13 +268,24 @@ def main():
         patched = str(work / "patched.apk")
         # default patch set, plus any patches the app config forces on (e.g. GmsCore support)
         enable = [x for name in app.get("enable", []) for x in ("-e", name)]
-        run(["java", "-jar", a.cli, "patch", "-p", bundle, "-o", patched,
-             "--keystore", os.environ["KEYSTORE_PATH"],
-             "--keystore-password", os.environ["KEYSTORE_PASSWORD"],
-             "--keystore-entry-alias", os.environ["KEY_ALIAS"],
-             "--keystore-entry-password", os.environ["KEY_PASSWORD"],
-             *enable,
-             stock])
+        pcmd = ["java", "-jar", a.cli, "patch", "-p", bundle, "-o", patched,
+                "--keystore", os.environ["KEYSTORE_PATH"],
+                "--keystore-password", os.environ["KEYSTORE_PASSWORD"],
+                "--keystore-entry-alias", os.environ["KEY_ALIAS"],
+                "--keystore-entry-password", os.environ["KEY_PASSWORD"],
+                *enable,
+                stock]
+        print("+", " ".join(map(str, pcmd)), flush=True)
+        proc = subprocess.Popen(pcmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        applied0 = False
+        for line in proc.stdout:
+            print(line, end="", flush=True)
+            if "Applying 0 patches" in line:
+                applied0 = True
+        if proc.wait() != 0:
+            raise subprocess.CalledProcessError(proc.returncode, pcmd)
+        if applied0:   # e.g. the app version is not one the patches support: never ship an unpatched build
+            raise SystemExit("0 patches applied: this app version is not supported by the patch bundle")
 
         pkg, vcode, vname = badging(patched)
         real = vname or version
