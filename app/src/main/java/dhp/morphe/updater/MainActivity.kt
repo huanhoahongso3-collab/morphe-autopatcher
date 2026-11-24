@@ -111,7 +111,7 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
                 items(st.items, key = { it.id }) { ItemCard(it, onAction = { vm.update(it) }) }
                 item {
                     Text(
-                        BuildConfig.GITHUB_REPO,
+                        "GitHub: ${BuildConfig.GITHUB_REPO}",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp).clickable {
