@@ -90,6 +90,12 @@ def download_stock(app, version, vcode, work, dl_tools):
                     return f, "apkmirror"
                 time.sleep(5)
 
+    # 1b) own minimal APKMirror client (logs the HTTP status of each step)
+    f = attempt("apkm", [sys.executable, str(Path(__file__).with_name("apkm.py")), "--org", src["org"], "--repo", src["repo"],
+                         "--version", version, "--min-android", str(app.get("min_android", 0)), "--id", app["id"], "--out", str(dl)], app["id"])
+    if f:
+        return f, "apkmirror"
+
     # 2) Aptoide public API (exact version only, md5-verified)
     f = attempt("aptoide", [sys.executable, str(Path(__file__).with_name("aptoide.py")), app["package"],
                             "--version", version, "--out", str(dl)])
