@@ -29,7 +29,7 @@ data class ManagerMeta(
 
 // ---- UI state ----
 enum class Kind { APP, MICROG, MANAGER }
-enum class Status { NOT_INSTALLED, UPDATE, UP_TO_DATE, UNKNOWN }
+enum class Status { NOT_INSTALLED, UPDATE, UP_TO_DATE, UNKNOWN, CONFLICT }   // CONFLICT = original app with another signature is installed
 
 data class Item(
     val id: String,

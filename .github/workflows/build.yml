@@ -2,7 +2,7 @@ name: Build patched apps + manager
 
 on:
   schedule:
-    - cron: "0 3 */2 * *"   # every 2 days
+    - cron: "0 3 * * 1,4"   # twice a week (Mon + Thu)
   workflow_dispatch:
     inputs:
       force:
@@ -55,6 +55,13 @@ jobs:
           mkdir -p prev
           gh release download -R "$GITHUB_REPOSITORY" --pattern '*' --dir prev --clobber || echo "no previous release"
 
+      - name: Restore stock APK cache
+        uses: actions/cache/restore@v4
+        with:
+          path: stock-cache
+          key: stock-${{ github.run_id }}
+          restore-keys: stock-
+
       - name: Fetch tools
         run: |
           mkdir -p tools
@@ -95,6 +102,13 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Save stock APK cache
+        if: always() && hashFiles('stock-cache.changed') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: stock-cache
+          key: stock-${{ github.run_id }}
+
       - name: Decide manager build
         id: d
         run: |
@@ -124,6 +138,6 @@ jobs:
           TAG="build-$(date -u +%Y%m%d-%H%M)"
           gh release create "$TAG" release/* --latest --title "$TAG" \
             --notes "Auto-built. See versions.json for app + patch versions."
-          # keep the 5 newest builds
-          gh release list --limit 100 --json tagName -q '.[].tagName' | grep '^build-' | tail -n +6 | \
+          # keep the latest build + 2 older ones; everything else is deleted (stock-apks is not a build-* tag)
+          gh release list --limit 100 --json tagName -q '.[].tagName' | grep '^build-' | sort -r | tail -n +4 | \
             xargs -r -I{} gh release delete {} --cleanup-tag --yes

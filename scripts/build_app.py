@@ -58,7 +58,25 @@ def _first_file(dl, prefix=""):
     return found[0] if found else None
 
 
+STOCK_CACHE = Path(os.environ.get("STOCK_CACHE", "stock-cache"))
+
+
 def download_stock(app, version, vcode, work, dl_tools):
+    """Reuse a cached base APK for this exact version, else download (and cache) it."""
+    for p in glob.glob(str(STOCK_CACHE / f"{app['id']}-{version}.*")):
+        print(f"stock cache hit: {p}", flush=True)
+        return p, "cache"
+    path, provider = _download_stock(app, version, vcode, work, dl_tools)
+    STOCK_CACHE.mkdir(parents=True, exist_ok=True)
+    for old in glob.glob(str(STOCK_CACHE / f"{app['id']}-*")):   # keep one version per app
+        os.remove(old)
+    ext = os.path.splitext(path)[1] or ".apk"
+    shutil.copy(path, STOCK_CACHE / f"{app['id']}-{version}{ext}")
+    Path("stock-cache.changed").write_text("1")   # marker outside the cache: tells the workflow to save a new cache
+    return path, provider
+
+
+def _download_stock(app, version, vcode, work, dl_tools):
     """Try sources in order; APKMirror clients first, other stores as fallbacks."""
     dl = Path(work) / "dl"
     errors = []
@@ -92,15 +110,16 @@ def download_stock(app, version, vcode, work, dl_tools):
 
     # 1b) own minimal APKMirror client (logs the HTTP status of each step)
     f = attempt("apkm", [sys.executable, str(Path(__file__).with_name("apkm.py")), "--org", src["org"], "--repo", src["repo"],
-                         "--version", version, "--min-android", str(app.get("min_android", 0)), "--id", app["id"], "--out", str(dl)], app["id"])
+                         "--release-prefix", src.get("release", ""), "--version", version, "--min-android", str(app.get("min_android", 0)), "--id", app["id"], "--out", str(dl)], app["id"])
     if f:
         return f, "apkmirror"
 
     # 1c) Google Play via gplaydl (needs GPLAYDL_API_KEY; exact version code)
-    if os.environ.get("GPLAYDL_API_KEY") and vcode:
+    # (no version code known, e.g. bundles that list no arm64 build: only for any_version apps, takes Play's current build)
+    if os.environ.get("GPLAYDL_API_KEY") and (vcode or app.get("any_version")):
         _fresh(dl)
         try:
-            run(["gplaydl", "download", app["package"], "-v", str(vcode), "-a", "arm64", "--no-extras", "-o", str(dl)])
+            run(["gplaydl", "download", app["package"]] + (["-v", str(vcode)] if vcode else []) + ["-a", "arm64", "--no-extras", "-o", str(dl)])
             parts = sorted(glob.glob(str(dl / "*.apk")))
             if parts:
                 bundle = dl / f"{app['id']}-gplay.apks"

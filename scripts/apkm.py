@@ -34,7 +34,8 @@ def get(url, ref=None, binary=False):
     sys.exit(f"apkm: failed {url}: {last}")
 
 
-def find_release(org, repo, version):
+def find_release(org, repo, version, prefix=""):
+    prefix = prefix or repo   # release slugs are not always "<repo>-<ver>-release" (TikTok: "tiktok-47-9-3-release")
     dashed = version.replace(".", "-")
     for page in (f"{BASE}/apk/{org}/{repo}/", f"{BASE}/uploads/?appcategory={repo}"):
         body = get(page, BASE)
@@ -43,7 +44,7 @@ def find_release(org, repo, version):
             if re.search(r"-%s(-\d+)*-release/$" % re.escape(dashed), p) or f"-{dashed}-" in p:
                 return BASE + p
     # direct guess
-    return f"{BASE}/apk/{org}/{repo}/{repo}-{dashed}-release/"
+    return f"{BASE}/apk/{org}/{repo}/{prefix}-{dashed}-release/"
 
 
 def pick_variant(body, min_android, prefer_bundle):
@@ -72,12 +73,13 @@ def main():
     ap.add_argument("--org", required=True)
     ap.add_argument("--repo", required=True)
     ap.add_argument("--version", required=True)
+    ap.add_argument("--release-prefix", default="")
     ap.add_argument("--min-android", type=int, default=0)
     ap.add_argument("--out", required=True)
     ap.add_argument("--id", required=True)
     a = ap.parse_args()
 
-    rel = find_release(a.org, a.repo, a.version)
+    rel = find_release(a.org, a.repo, a.version, a.release_prefix)
     body = get(rel, BASE)
     v = None
     for pb in (True, False):

@@ -45,6 +45,16 @@ object Repository {
         (i.versionName ?: "?") to i.longVersionCode
     } catch (_: PackageManager.NameNotFoundException) { null }
 
+    /** SHA-256 hashes of the signing certificates of [pkg], or null when it is not installed. */
+    @Suppress("DEPRECATION")
+    private fun certs(ctx: Context, pkg: String): Set<String>? = try {
+        val sigs = if (android.os.Build.VERSION.SDK_INT >= 28) {
+            val i = ctx.packageManager.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES)
+            i.signingInfo?.apkContentsSigners
+        } else ctx.packageManager.getPackageInfo(pkg, PackageManager.GET_SIGNATURES).signatures
+        sigs?.map { s -> MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) } }?.toSet()
+    } catch (_: PackageManager.NameNotFoundException) { null }
+
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("installed", Context.MODE_PRIVATE)
     fun savedPatches(ctx: Context, id: String): String? = prefs(ctx).getString(id, null)
     fun savePatches(ctx: Context, id: String, v: String) = prefs(ctx).edit().putString(id, v).apply()
@@ -85,9 +95,11 @@ object Repository {
             )
         }
 
-        // 3) patched apps
+        // 3) patched apps (all signed with our key; an installed app with another signature is the original)
+        val mine = certs(ctx, ctx.packageName)
         for (a in doc.apps) {
             val inst = installed(ctx, a.`package`)
+            val other = inst != null && mine != null && certs(ctx, a.`package`)?.let { it != mine } == true
             val savedP = savedPatches(ctx, a.id)
             val appNewer = inst != null && (if (a.appVersionCode > 0) a.appVersionCode > inst.second else newer(a.appVersion, inst.first))
             val patchNewer = inst != null && (savedP == null || newer(a.patchesVersion, savedP))
@@ -95,6 +107,7 @@ object Repository {
                 a.id, a.name, Kind.APP, a.`package`,
                 when {
                     inst == null -> Status.NOT_INSTALLED
+                    other -> Status.CONFLICT                  // original app present: mod cannot be installed over it
                     appNewer || patchNewer -> Status.UPDATE   // either one rising triggers the prompt
                     else -> Status.UP_TO_DATE
                 },

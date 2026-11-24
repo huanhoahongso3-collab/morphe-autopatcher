@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -64,23 +65,23 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
         onDispose { owner.lifecycle.removeObserver(obs) }
     }
 
+    var showSettings by remember { mutableStateOf(false) }
+    if (showSettings) SettingsDialog(st, vm) { showSettings = false }
+
     st.conflict?.let { c ->
         AlertDialog(
             onDismissRequest = vm::dismissConflict,
-            title = { Text("Different signature") },
+            title = { Text("Mod not installed") },
             text = {
                 Text(
-                    "${c.name} is already installed but was signed with a different key " +
-                        "(for example the stock app from the store), so Android refuses to update it in place.\n\n" +
-                        "Uninstall the old app first, then tap Install again.\n\n" +
-                        "Warning: uninstalling deletes that app's data.",
+                    "${c.name} was not installed: the app on your phone is the original (signed with a different key), " +
+                        "so Android will not let the mod replace it.\n\n" +
+                        "Uninstall the original app, then install the mod.\n\n" +
+                        "Warning: you will lose that app's data.",
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    vm.dismissConflict()
-                    ctx.startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:${c.pkg}")))
-                }) { Text("Uninstall") }
+                TextButton(onClick = { vm.replaceOriginal(c) }) { Text("Uninstall original & install") }
             },
             dismissButton = { TextButton(onClick = vm::dismissConflict) { Text("Cancel") } },
         )
@@ -90,7 +91,10 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
         topBar = {
             TopAppBar(
                 title = { Text("App Updater", style = MaterialTheme.typography.titleLarge) },
-                actions = { IconButton(onClick = vm::refresh) { Icon(Icons.Filled.Refresh, "Refresh") } },
+                actions = {
+                    IconButton(onClick = { vm.refreshStatus(); showSettings = true }) { Icon(Icons.Filled.Settings, "Settings") }
+                    IconButton(onClick = vm::refresh) { Icon(Icons.Filled.Refresh, "Refresh") }
+                },
             )
         },
         floatingActionButton = {
@@ -108,6 +112,7 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 st.error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
+                st.note?.let { item { Text(it, style = MaterialTheme.typography.bodyMedium) } }
                 items(st.items, key = { it.id }) { ItemCard(it, onAction = { vm.update(it) }) }
                 item {
                     Text(
@@ -143,7 +148,9 @@ fun ItemCard(item: Item, onAction: () -> Unit) {
                 }
                 when (val p = item.progress) {
                     null -> if (item.status != Status.UP_TO_DATE) {
-                        Button(onClick = onAction) { Text(if (item.status == Status.NOT_INSTALLED) "Install" else "Update") }
+                        Button(onClick = onAction) {
+                            Text(when (item.status) { Status.NOT_INSTALLED -> "Install"; Status.CONFLICT -> "Replace original"; else -> "Update" })
+                        }
                     }
                     else -> if (p < 0f) LoadingIndicator(Modifier.size(40.dp))
                 }
@@ -174,7 +181,58 @@ private fun statusText(s: Status) = when (s) {
     Status.UPDATE -> "Update available"
     Status.UP_TO_DATE -> "Up to date"
     Status.UNKNOWN -> "Unknown"
+    Status.CONFLICT -> "Mod not installed - the original app is installed (different signature)"
 }
 
 private fun versionLine(label: String, old: String?, new: String) =
     if (old == null || old == new) "$label  $new" else "$label  $old → $new"
+
+@Composable
+private fun SettingsDialog(st: UiState, vm: UpdaterViewModel, onClose: () -> Unit) {
+    val privOk = st.mode != InstallMode.NORMAL
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("Settings") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Install mode", style = MaterialTheme.typography.titleSmall)
+                ModeRow("Normal (system prompt)", "Android asks to confirm every install.", st.mode == InstallMode.NORMAL) { vm.setMode(InstallMode.NORMAL) }
+                ModeRow(
+                    "Shizuku",
+                    when {
+                        !st.priv.shizukuRunning -> "Shizuku is not running"
+                        !st.priv.shizukuGranted -> "Running - tap to allow access"
+                        else -> "Running and allowed"
+                    },
+                    st.mode == InstallMode.SHIZUKU,
+                ) { vm.setMode(InstallMode.SHIZUKU) }
+                ModeRow(
+                    "Root",
+                    if (st.priv.rootAvailable) "Root available" else "Root not available / not granted",
+                    st.mode == InstallMode.ROOT,
+                ) { vm.setMode(InstallMode.ROOT) }
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                SwitchRow("Auto update", "Checks twice a week and installs updates silently.", st.autoUpdate, privOk) { vm.setAutoUpdate(it) }
+                SwitchRow("Auto update at app startup", "Checks and installs when this app opens.", st.autoUpdateOnStart, privOk) { vm.setAutoUpdateOnStart(it) }
+                if (!privOk) Text("Auto update needs Shizuku or Root mode.", style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text("Close") } },
+    )
+}
+
+@Composable
+private fun ModeRow(title: String, sub: String, selected: Boolean, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
+        RadioButton(selected = selected, onClick = onClick)
+        Column { Text(title); Text(sub, style = MaterialTheme.typography.bodySmall) }
+    }
+}
+
+@Composable
+private fun SwitchRow(title: String, sub: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) { Text(title); Text(sub, style = MaterialTheme.typography.bodySmall) }
+        Switch(checked = checked && enabled, onCheckedChange = onChange, enabled = enabled)
+    }
+}

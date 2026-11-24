@@ -59,7 +59,8 @@
       "bundle_asset": "patches-*.mpp",
       "apkmirror": {
         "org": "tiktok-pte-ltd",
-        "repo": "tik-tok-including-musical-ly"
+        "repo": "tik-tok-including-musical-ly",
+        "release": "tiktok"
       },
       "apkcombo": {
         "org": "tiktok",
@@ -132,6 +133,7 @@
       "id": "block-blast",
       "name": "Block Blast!",
       "package": "com.block.juggle",
+      "any_version": true,
       "bundle_repo": "ImNoammm/Noams-Morphe-Patches",
       "bundle_asset": "noams-morphe-patches-*.mpp",
       "apkmirror": {
@@ -147,7 +149,7 @@
       "id": "capcut",
       "name": "CapCut",
       "package": "com.lemon.lvoverseas",
-      "bundle_repo": "kveld9/kveld-extra-morphe-patches",
+      "bundle_repo": "durgesh0505/chiggi_morphe_patches",
       "bundle_asset": "patches-*.mpp",
       "apkmirror": {
         "org": "bytedance-pte-ltd",

@@ -14,6 +14,25 @@ object Installer {
 
     /** Installs [apk] via PackageInstaller. [onDone] gets (success, message). */
     fun install(ctx: Context, id: String, apk: File, onDone: (Boolean, String?, Int) -> Unit) {
+        val mode = Settings.mode(ctx)
+        if (mode != InstallMode.NORMAL) {
+            // Silent install via Shizuku/root; anything unexpected falls back to the normal prompt below.
+            Thread {
+                val usable = runCatching { Privileged.usable(mode) }.getOrDefault(false)
+                val err = if (usable) runCatching { Privileged.install(mode, apk) }.getOrElse { it.message ?: "failed" } else "unavailable"
+                when {
+                    usable && err == null -> { apk.delete(); onDone(true, null, 0) }
+                    usable && ("INSTALL_FAILED_UPDATE_INCOMPATIBLE" in err!! || "signatures" in err) ->
+                        onDone(false, err, PackageInstaller.STATUS_FAILURE_INCOMPATIBLE)
+                    else -> installNormal(ctx, id, apk, onDone)
+                }
+            }.start()
+            return
+        }
+        installNormal(ctx, id, apk, onDone)
+    }
+
+    private fun installNormal(ctx: Context, id: String, apk: File, onDone: (Boolean, String?, Int) -> Unit) {
         val pi = ctx.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
         if (Build.VERSION.SDK_INT >= 31) params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
