@@ -96,6 +96,23 @@ def download_stock(app, version, vcode, work, dl_tools):
     if f:
         return f, "apkmirror"
 
+    # 1c) Google Play via gplaydl (needs GPLAYDL_API_KEY; exact version code)
+    if os.environ.get("GPLAYDL_API_KEY") and vcode:
+        _fresh(dl)
+        try:
+            run(["gplaydl", "download", app["package"], "-v", str(vcode), "-a", "arm64", "--no-extras", "-o", str(dl)])
+            parts = sorted(glob.glob(str(dl / "*.apk")))
+            if parts:
+                bundle = dl / f"{app['id']}-gplay.apks"
+                with zipfile.ZipFile(bundle, "w") as z:
+                    for p in parts:
+                        z.write(p, os.path.basename(p))
+                for p in parts:
+                    os.remove(p)
+                return str(bundle), "googleplay"
+        except (subprocess.CalledProcessError, OSError) as e:
+            errors.append(f"gplaydl: {e}")
+
     # 2) Aptoide public API (exact version only, md5-verified)
     f = attempt("aptoide", [sys.executable, str(Path(__file__).with_name("aptoide.py")), app["package"],
                             "--version", version, "--out", str(dl)])

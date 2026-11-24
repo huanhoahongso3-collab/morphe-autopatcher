@@ -36,6 +36,7 @@ jobs:
       KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
       KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
       KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      GPLAYDL_API_KEY: ${{ secrets.GPLAYDL_API_KEY }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -76,7 +77,7 @@ jobs:
           chmod +x tools/apkd tools/apkmd tools/apkeep tools/apkmd-orig tools/apkmd-fork 2>/dev/null || true
 
       - name: Install justapk
-        run: pip install justapk
+        run: pip install justapk gplaydl
 
       - name: Patch apps
         run: |
