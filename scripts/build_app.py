@@ -115,7 +115,7 @@ def _download_stock(app, version, vcode, work, dl_tools):
         return f, "apkmirror"
 
     # 1c) Google Play via gplaydl (needs GPLAYDL_API_KEY). The version always follows the patch bundle:
-    #     exact version code only (bundle or config version_codes), and every download is checked against the wanted versionName before it is accepted.
+    #     exact version code only (bundle or config version_codes), and every download is checked against the wanted versionCode before it is accepted.
     if os.environ.get("GPLAYDL_API_KEY"):
         # exact version code: from the bundle (list-versions) or the config's version_codes; never guessed
         code0 = vcode or app.get("version_codes", {}).get(version)
@@ -135,12 +135,12 @@ def _download_stock(app, version, vcode, work, dl_tools):
             if not parts:
                 continue
             try:
-                got = badging(max(parts, key=os.path.getsize))[2]
+                got = badging(max(parts, key=os.path.getsize))[1]   # versionCode
             except Exception as e:  # aapt2 problem: do not trust it
                 errors.append(f"gplaydl {code}: cannot read version ({e})")
                 continue
-            if got != version and not app.get("any_version"):
-                errors.append(f"gplaydl {code}: is {got}, wanted {version}")
+            if got != int(code):
+                errors.append(f"gplaydl {code}: downloaded versionCode {got}, wanted {code}")
                 continue
             bundle = dl / f"{app['id']}-gplay.apks"
             with zipfile.ZipFile(bundle, "w") as z:
