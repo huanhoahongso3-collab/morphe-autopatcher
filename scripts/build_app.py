@@ -310,6 +310,7 @@ def main():
                 "--keystore-password", os.environ["KEYSTORE_PASSWORD"],
                 "--keystore-entry-alias", os.environ["KEY_ALIAS"],
                 "--keystore-entry-password", os.environ["KEY_PASSWORD"],
+                "--striplibs", "arm64-v8a",   # arm64 only: drop every other native architecture
                 *enable,
                 stock]
         print("+", " ".join(map(str, pcmd)), flush=True)

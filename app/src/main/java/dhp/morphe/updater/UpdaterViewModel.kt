@@ -47,10 +47,15 @@ class UpdaterViewModel(app: Application) : AndroidViewModel(app) {
         refresh()
     }
 
-    fun refreshStatus() {
+    fun refreshStatus(checkRoot: Boolean = false) {
         viewModelScope.launch {
-            val s = withContext(Dispatchers.IO) { runCatching { Privileged.status() }.getOrDefault(PrivStatus()) }
-            _state.update { it.copy(priv = s) }
+            val known = _state.value.priv.rootAvailable
+            val s = withContext(Dispatchers.IO) {
+                runCatching { Privileged.status(checkRoot || _state.value.mode == InstallMode.ROOT && !known, known) }
+                    .getOrDefault(PrivStatus())
+            }
+            // identical status -> no state change -> no recomposition while the settings sheet animates
+            if (s != _state.value.priv) _state.update { it.copy(priv = s) }
         }
     }
 
@@ -93,7 +98,7 @@ class UpdaterViewModel(app: Application) : AndroidViewModel(app) {
         Settings.setMode(ctx, m)
         _state.update { it.copy(mode = m) }
         if (m == InstallMode.SHIZUKU) Privileged.requestShizuku()
-        refreshStatus()
+        refreshStatus(checkRoot = m == InstallMode.ROOT)
     }
 
     fun setAutoUpdate(v: Boolean) {

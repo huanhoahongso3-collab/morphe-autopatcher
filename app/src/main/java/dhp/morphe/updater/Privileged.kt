@@ -19,7 +19,9 @@ object Privileged {
         runCatching { if (shizukuRunning() && !shizukuGranted()) Shizuku.requestPermission(PERMISSION_REQUEST) }
     }
 
-    fun status(): PrivStatus = PrivStatus(shizukuRunning(), shizukuGranted(), rootAvailable())
+    /** Spawning `su` is slow and can pop a root prompt, so it only runs when [checkRoot] is true (otherwise [knownRoot] is kept). */
+    fun status(checkRoot: Boolean, knownRoot: Boolean): PrivStatus =
+        PrivStatus(shizukuRunning(), shizukuGranted(), if (checkRoot) rootAvailable() else knownRoot)
 
     fun rootAvailable(): Boolean = runCatching {
         val (code, out) = run(InstallMode.ROOT, "id -u", null)

@@ -10,6 +10,9 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -86,7 +89,13 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
     }
 
     var showSettings by remember { mutableStateOf(false) }
-    if (showSettings) SettingsSheet(st, vm) { showSettings = false }
+    if (showSettings) {
+        // Only the settings fields: download-progress ticks must not recompose (and jank) the open sheet.
+        val sui = remember(st.mode, st.priv, st.autoUpdate, st.autoUpdateOnStart) {
+            SettingsUi(st.mode, st.priv, st.autoUpdate, st.autoUpdateOnStart)
+        }
+        SettingsSheet(sui, vm) { showSettings = false }
+    }
 
     st.conflict?.let { c ->
         AlertDialog(
@@ -112,8 +121,19 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
             TopAppBar(
                 title = { Text(tr("App Updater", "Trình Cập Nhật"), style = MaterialTheme.typography.titleLarge) },
                 actions = {
-                    IconButton(onClick = { vm.refreshStatus(); showSettings = true }) { Icon(Icons.Filled.Settings, "Settings") }
-                    IconButton(onClick = vm::refresh) { Icon(Icons.Filled.Refresh, "Refresh") }
+                    IconButton(onClick = { showSettings = true }) { Icon(Icons.Filled.Settings, "Settings") }
+                    IconButton(onClick = vm::refresh) {
+                        val spin = androidx.compose.animation.core.rememberInfiniteTransition(label = "spin")
+                        val angle by spin.animateFloat(
+                            0f, 360f,
+                            androidx.compose.animation.core.infiniteRepeatable(
+                                androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.LinearEasing),
+                            ),
+                            label = "angle",
+                        )
+                        Icon(Icons.Filled.Refresh, tr("Refresh", "Làm mới"),
+                            Modifier.rotate(if (st.loading) angle else 0f))
+                    }
                 },
             )
         },
@@ -125,15 +145,20 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
             )
         },
     ) { pad ->
-        Box(Modifier.padding(pad).fillMaxSize()) {
-            if (st.loading) LoadingIndicator(Modifier.align(Alignment.Center).size(64.dp))
+        PullToRefreshBox(
+            isRefreshing = st.loading && st.items.isNotEmpty(),
+            onRefresh = vm::refresh,
+            modifier = Modifier.padding(pad).fillMaxSize(),
+        ) {
+            if (st.loading && st.items.isEmpty()) LoadingIndicator(Modifier.align(Alignment.Center).size(64.dp))
             LazyColumn(
+                modifier = Modifier.alpha(if (st.loading && st.items.isNotEmpty()) 0.6f else 1f),
                 contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 96.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 st.error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
                 st.note?.let { item { Text(it, style = MaterialTheme.typography.bodyMedium) } }
-                items(st.items, key = { it.id }) { ItemCard(it, onAction = { vm.update(it) }) }
+                items(st.items, key = { it.id }) { ItemCard(it, onAction = { vm.update(it) }, modifier = Modifier.animateItem()) }
                 item {
                     Column(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         FilledTonalButton(onClick = {
@@ -157,9 +182,10 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
 }
 
 @Composable
-fun ItemCard(item: Item, onAction: () -> Unit) {
+fun ItemCard(item: Item, onAction: () -> Unit, modifier: Modifier = Modifier) {
     val update = item.status == Status.UPDATE
     ElevatedCard(
+        modifier = modifier,
         colors = CardDefaults.elevatedCardColors(
             containerColor = if (update) MaterialTheme.colorScheme.primaryContainer
             else MaterialTheme.colorScheme.surfaceContainerLow,
@@ -213,8 +239,11 @@ private fun statusText(s: Status) = when (s) {
 private fun versionLine(label: String, old: String?, new: String) =
     if (old == null || old == new) "$label  $new" else "$label  $old → $new"
 
+@androidx.compose.runtime.Immutable
+data class SettingsUi(val mode: InstallMode, val priv: PrivStatus, val autoUpdate: Boolean, val autoUpdateOnStart: Boolean)
+
 @Composable
-private fun SettingsSheet(st: UiState, vm: UpdaterViewModel, onClose: () -> Unit) {
+private fun SettingsSheet(st: SettingsUi, vm: UpdaterViewModel, onClose: () -> Unit) {
     val c = LocalContext.current
     val privOk = st.mode != InstallMode.NORMAL
     ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {

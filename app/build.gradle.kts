@@ -18,6 +18,7 @@ android {
         // owner/name of the repo that publishes the releases (CI passes -PgithubRepo)
         val repo = (project.findProperty("githubRepo") as String?) ?: "OWNER/morphe-autopatcher"
         buildConfigField("String", "GITHUB_REPO", "\"$repo\"")
+        ndk { abiFilters += "arm64-v8a" }   // the manager only installs on 64-bit ARM (armv8) devices
     }
 
     signingConfigs {
