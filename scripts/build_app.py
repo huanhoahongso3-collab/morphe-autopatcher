@@ -52,6 +52,17 @@ def supported_version(cli_jar, bundle, package):
 def download_stock(app, version, vcode, work, dl_tools):
     dl = Path(work) / "dl"
     errors = []
+    # 0a) Aptoide public API: exact version match only, md5-verified
+    shutil.rmtree(dl, ignore_errors=True)
+    dl.mkdir(parents=True, exist_ok=True)
+    try:
+        run([sys.executable, str(Path(__file__).with_name("aptoide.py")), app["package"],
+             "--version", version, "--out", str(dl)])
+        found = [p for p in glob.glob(str(dl / "*")) if os.path.isfile(p)]
+        if found:
+            return found[0], "aptoide"
+    except subprocess.CalledProcessError as e:
+        errors.append(f"aptoide: {e}")
     # 0) apkeep (EFF) from APKPure, pinned by version name, then latest
     for spec in (f"{app['package']}@{version}", app["package"]):
         shutil.rmtree(dl, ignore_errors=True)
@@ -178,12 +189,14 @@ def main():
         stock = ensure_apk(stock, work, a.editor)
 
         patched = str(work / "patched.apk")
-        # default patch set: no -e / -d flags
+        # default patch set, plus any patches the app config forces on (e.g. GmsCore support)
+        enable = [x for name in app.get("enable", []) for x in ("-e", name)]
         run(["java", "-jar", a.cli, "patch", "-p", bundle, "-o", patched,
              "--keystore", os.environ["KEYSTORE_PATH"],
              "--keystore-password", os.environ["KEYSTORE_PASSWORD"],
              "--keystore-entry-alias", os.environ["KEY_ALIAS"],
              "--keystore-entry-password", os.environ["KEY_PASSWORD"],
+             *enable,
              stock])
 
         pkg, vcode, vname = badging(patched)
