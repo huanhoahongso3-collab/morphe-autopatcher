@@ -133,7 +133,6 @@
       "id": "block-blast",
       "name": "Block Blast!",
       "package": "com.block.juggle",
-      "any_version": true,
       "bundle_repo": "ImNoammm/Noams-Morphe-Patches",
       "bundle_asset": "noams-morphe-patches-*.mpp",
       "apkmirror": {

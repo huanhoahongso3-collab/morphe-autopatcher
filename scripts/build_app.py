@@ -114,23 +114,41 @@ def _download_stock(app, version, vcode, work, dl_tools):
     if f:
         return f, "apkmirror"
 
-    # 1c) Google Play via gplaydl (needs GPLAYDL_API_KEY; exact version code)
-    # (no version code known, e.g. bundles that list no arm64 build: only for any_version apps, takes Play's current build)
-    if os.environ.get("GPLAYDL_API_KEY") and (vcode or app.get("any_version")):
-        _fresh(dl)
-        try:
-            run(["gplaydl", "download", app["package"]] + (["-v", str(vcode)] if vcode else []) + ["-a", "arm64", "--no-extras", "-o", str(dl)])
+    # 1c) Google Play via gplaydl (needs GPLAYDL_API_KEY). The version always follows the patch bundle:
+    #     known version code first, otherwise codes derived from the version name (10.8.1 -> 1081x),
+    #     and every download is checked against the wanted versionName before it is accepted.
+    if os.environ.get("GPLAYDL_API_KEY"):
+        digits = "".join(re.findall(r"\d+", version))
+        cands = ([str(vcode)] if vcode else []) + [digits] + [digits + str(i) for i in range(10)]
+        tried = set()
+        for code in cands:
+            if code in tried:
+                continue
+            tried.add(code)
+            _fresh(dl)
+            try:
+                run(["gplaydl", "download", app["package"], "-v", code, "-a", "arm64", "--no-extras", "-o", str(dl)])
+            except (subprocess.CalledProcessError, OSError) as e:
+                errors.append(f"gplaydl {code}: {e}")
+                continue
             parts = sorted(glob.glob(str(dl / "*.apk")))
-            if parts:
-                bundle = dl / f"{app['id']}-gplay.apks"
-                with zipfile.ZipFile(bundle, "w") as z:
-                    for p in parts:
-                        z.write(p, os.path.basename(p))
+            if not parts:
+                continue
+            try:
+                got = badging(max(parts, key=os.path.getsize))[2]
+            except Exception as e:  # aapt2 problem: do not trust it
+                errors.append(f"gplaydl {code}: cannot read version ({e})")
+                continue
+            if got != version and not app.get("any_version"):
+                errors.append(f"gplaydl {code}: is {got}, wanted {version}")
+                continue
+            bundle = dl / f"{app['id']}-gplay.apks"
+            with zipfile.ZipFile(bundle, "w") as z:
                 for p in parts:
-                    os.remove(p)
-                return str(bundle), "googleplay"
-        except (subprocess.CalledProcessError, OSError) as e:
-            errors.append(f"gplaydl: {e}")
+                    z.write(p, os.path.basename(p))
+            for p in parts:
+                os.remove(p)
+            return str(bundle), "googleplay"
 
     # 2) Aptoide public API (exact version only, md5-verified)
     f = attempt("aptoide", [sys.executable, str(Path(__file__).with_name("aptoide.py")), app["package"],
