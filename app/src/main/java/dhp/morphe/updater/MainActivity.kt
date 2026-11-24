@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.ui.draw.alpha

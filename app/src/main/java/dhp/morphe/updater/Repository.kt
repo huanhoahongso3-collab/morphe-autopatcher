@@ -19,14 +19,41 @@ object Repository {
     private val http = OkHttpClient()
 
     private fun get(url: String): String {
-        val req = Request.Builder().url(url).header("Accept", "application/vnd.github+json").build()
+        val b = Request.Builder().url(url).header("User-Agent", UA)
+        if (url.startsWith("https://api.github.com")) b.header("Accept", "application/vnd.github+json")
+        val req = b.build()
         http.newCall(req).execute().use { r ->
             check(r.isSuccessful) { "HTTP ${r.code} for $url" }
             return r.body!!.string()
         }
     }
 
-    private fun latest(repo: String) = json.decodeFromString<GhRelease>(get("https://api.github.com/repos/$repo/releases/latest"))
+    /**
+     * Latest release WITHOUT the REST API: api.github.com allows only 60 requests/hour per IP for anonymous
+     * clients and answers HTTP 403 once that is used up. github.com's own pages have no such limit:
+     * /releases/latest redirects to the tag, /releases/expanded_assets/<tag> lists the asset links.
+     */
+    private fun latestWeb(repo: String): GhRelease {
+        val tag = http.newCall(Request.Builder().url("https://github.com/$repo/releases/latest").header("User-Agent", UA).build())
+            .execute().use { r ->
+                check(r.isSuccessful) { "HTTP ${r.code}" }
+                r.request.url.pathSegments.last()
+            }
+        val html = http.newCall(Request.Builder().url("https://github.com/$repo/releases/expanded_assets/$tag").header("User-Agent", UA).build())
+            .execute().use { r -> check(r.isSuccessful) { "HTTP ${r.code}" }; r.body!!.string() }
+        val assets = Regex("href=\"(/${Regex.escape(repo)}/releases/download/[^\"]+)\"").findAll(html).map { it.groupValues[1] }.distinct()
+            .map { path -> GhAsset(path.substringAfterLast('/'), "https://github.com$path") }.toList()
+        check(assets.isNotEmpty()) { "no assets found" }
+        return GhRelease(tag, assets)
+    }
+
+    private const val UA = "AppUpdater/1.0"
+
+    private fun latest(repo: String): GhRelease =
+        runCatching { latestWeb(repo) }.getOrElse {
+            // fall back to the REST API (works while the anonymous quota lasts)
+            json.decodeFromString<GhRelease>(get("https://api.github.com/repos/$repo/releases/latest"))
+        }
 
     // ---- version helpers ----
     fun newer(candidate: String, installed: String): Boolean {

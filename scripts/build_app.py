@@ -285,7 +285,7 @@ def main():
         # arm64-v8a is mandatory (other ABIs optional): an app with native libs but no arm64 build is a wrong download
         with zipfile.ZipFile(stock) as z:
             abis = {n.split("/")[1] for n in z.namelist() if n.startswith("lib/") and n.count("/") >= 2}
-        if abis and "arm64-v8a" not in abis:
+        if abis and "arm64-v8a" not in abis and not app.get("allow_32bit"):
             for old in glob.glob(str(STOCK_CACHE / f"{app['id']}-*")):
                 os.remove(old)
             Path("stock-cache.changed").write_text("1")   # persist the purge
@@ -310,7 +310,7 @@ def main():
                 "--keystore-password", os.environ["KEYSTORE_PASSWORD"],
                 "--keystore-entry-alias", os.environ["KEY_ALIAS"],
                 "--keystore-entry-password", os.environ["KEY_PASSWORD"],
-                "--striplibs", "arm64-v8a",   # arm64 only: drop every other native architecture
+                "--striplibs", "arm64-v8a,armeabi-v7a" if app.get("allow_32bit") else "arm64-v8a",   # arm64 only (allow_32bit apps keep v7a too)
                 *enable,
                 stock]
         print("+", " ".join(map(str, pcmd)), flush=True)
