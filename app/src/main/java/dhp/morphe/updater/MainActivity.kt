@@ -10,6 +10,7 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.ui.draw.alpha
@@ -90,14 +91,6 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
     }
 
     var showSettings by remember { mutableStateOf(false) }
-    if (showSettings) {
-        // Only the settings fields: download-progress ticks must not recompose (and jank) the open sheet.
-        val sui = remember(st.mode, st.priv, st.autoUpdate, st.autoUpdateOnStart) {
-            SettingsUi(st.mode, st.priv, st.autoUpdate, st.autoUpdateOnStart)
-        }
-        SettingsSheet(sui, vm) { showSettings = false }
-    }
-
     st.conflict?.let { c ->
         AlertDialog(
             onDismissRequest = vm::dismissConflict,
@@ -117,6 +110,7 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
         )
     }
 
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -179,6 +173,17 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
                 }
             }
         }
+    }
+    val sui = remember(st.mode, st.priv, st.autoUpdate, st.autoUpdateOnStart) {
+        SettingsUi(st.mode, st.priv, st.autoUpdate, st.autoUpdateOnStart)
+    }
+    androidx.compose.animation.AnimatedVisibility(
+        visible = showSettings,
+        enter = androidx.compose.animation.slideInHorizontally { it } + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.slideOutHorizontally { it } + androidx.compose.animation.fadeOut(),
+    ) {
+        Surface(Modifier.fillMaxSize()) { SettingsScreen(sui, vm) { showSettings = false } }
+    }
     }
 }
 
@@ -243,79 +248,95 @@ private fun versionLine(label: String, old: String?, new: String) =
 @androidx.compose.runtime.Immutable
 data class SettingsUi(val mode: InstallMode, val priv: PrivStatus, val autoUpdate: Boolean, val autoUpdateOnStart: Boolean)
 
+/** Full settings page (a normal screen with a plain LazyColumn: no bottom-sheet drag fighting the scroll). */
 @Composable
-private fun SettingsSheet(st: SettingsUi, vm: UpdaterViewModel, onClose: () -> Unit) {
+private fun SettingsScreen(st: SettingsUi, vm: UpdaterViewModel, onBack: () -> Unit) {
     val c = LocalContext.current
     val privOk = st.mode != InstallMode.NORMAL
-    ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(
-            Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 32.dp),
+    androidx.activity.compose.BackHandler(onBack = onBack)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(tr("Settings", "Cài đặt"), style = MaterialTheme.typography.titleLarge) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack, tr("Back", "Quay lại"))
+                    }
+                },
+            )
+        },
+    ) { pad ->
+        LazyColumn(
+            Modifier.padding(pad).fillMaxSize(),
+            contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(tr("Settings", "Cài đặt"), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
-
-            SettingsCard(Icons.Filled.Bolt, tr("Install mode", "Chế độ cài đặt")) {
-                val modes = listOf(
-                    InstallMode.NORMAL to tr("Normal", "Thường"),
-                    InstallMode.SHIZUKU to "Shizuku",
-                    InstallMode.ROOT to "Root",
-                )
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    modes.forEachIndexed { i, (m, label) ->
-                        SegmentedButton(
-                            selected = st.mode == m,
-                            onClick = { vm.setMode(m) },
-                            shape = SegmentedButtonDefaults.itemShape(i, modes.size),
-                        ) { Text(label) }
-                    }
-                }
-                Text(
-                    when (st.mode) {
-                        InstallMode.NORMAL -> tr("Android asks you to confirm every install.", "Android hỏi xác nhận mỗi lần cài.")
-                        InstallMode.SHIZUKU -> when {
-                            !st.priv.shizukuRunning -> tr("Shizuku is not running.", "Shizuku chưa chạy.")
-                            !st.priv.shizukuGranted -> tr("Running - tap Shizuku again to allow access.", "Đang chạy - chạm Shizuku lần nữa để cấp quyền.")
-                            else -> tr("Running and allowed: silent installs.", "Đang chạy và đã cấp quyền: cài im lặng.")
+            item(key = "mode") {
+                SettingsCard(Icons.Filled.Bolt, tr("Install mode", "Chế độ cài đặt")) {
+                    val modes = listOf(
+                        InstallMode.NORMAL to tr("Normal", "Thường"),
+                        InstallMode.SHIZUKU to "Shizuku",
+                        InstallMode.ROOT to "Root",
+                    )
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                        modes.forEachIndexed { i, (m, label) ->
+                            SegmentedButton(
+                                selected = st.mode == m,
+                                onClick = { vm.setMode(m) },
+                                shape = SegmentedButtonDefaults.itemShape(i, modes.size),
+                            ) { Text(label) }
                         }
-                        InstallMode.ROOT ->
-                            if (st.priv.rootAvailable) tr("Root granted: silent installs.", "Đã có root: cài im lặng.")
-                            else tr("Root not available / not granted.", "Không có root / chưa cấp quyền.")
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                    }
+                    Text(
+                        when (st.mode) {
+                            InstallMode.NORMAL -> tr("Android asks you to confirm every install.", "Android hỏi xác nhận mỗi lần cài.")
+                            InstallMode.SHIZUKU -> when {
+                                !st.priv.shizukuRunning -> tr("Shizuku is not running.", "Shizuku chưa chạy.")
+                                !st.priv.shizukuGranted -> tr("Running - tap Shizuku again to allow access.", "Đang chạy - chạm Shizuku lần nữa để cấp quyền.")
+                                else -> tr("Running and allowed: silent installs.", "Đang chạy và đã cấp quyền: cài im lặng.")
+                            }
+                            InstallMode.ROOT ->
+                                if (st.priv.rootAvailable) tr("Root granted: silent installs.", "Đã có root: cài im lặng.")
+                                else tr("Root not available / not granted.", "Không có root / chưa cấp quyền.")
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
-
-            SettingsCard(Icons.Filled.Autorenew, tr("Updates", "Cập nhật")) {
-                SwitchRow(
-                    Icons.Filled.Schedule, tr("Auto update", "Tự động cập nhật"),
-                    tr("Checks twice a week and installs updates silently.", "Kiểm tra 2 lần mỗi tuần và tự cài cập nhật."),
-                    st.autoUpdate, privOk,
-                ) { vm.setAutoUpdate(it) }
-                SwitchRow(
-                    Icons.Filled.RocketLaunch, tr("Auto update at app startup", "Tự động cập nhật khi mở ứng dụng"),
-                    tr("Checks and installs when this app opens.", "Kiểm tra và cài khi mở ứng dụng này."),
-                    st.autoUpdateOnStart, privOk,
-                ) { vm.setAutoUpdateOnStart(it) }
-                if (!privOk) Text(
-                    tr("Needs Shizuku or Root mode.", "Cần chế độ Shizuku hoặc Root."),
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            item(key = "updates") {
+                SettingsCard(Icons.Filled.Autorenew, tr("Updates", "Cập nhật")) {
+                    SwitchRow(
+                        Icons.Filled.Schedule, tr("Auto update", "Tự động cập nhật"),
+                        tr("Checks twice a week and installs updates silently.", "Kiểm tra 2 lần mỗi tuần và tự cài cập nhật."),
+                        st.autoUpdate, privOk,
+                    ) { vm.setAutoUpdate(it) }
+                    SwitchRow(
+                        Icons.Filled.RocketLaunch, tr("Auto update at app startup", "Tự động cập nhật khi mở ứng dụng"),
+                        tr("Checks and installs when this app opens.", "Kiểm tra và cài khi mở ứng dụng này."),
+                        st.autoUpdateOnStart, privOk,
+                    ) { vm.setAutoUpdateOnStart(it) }
+                    if (!privOk) Text(
+                        tr("Needs Shizuku or Root mode.", "Cần chế độ Shizuku hoặc Root."),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
-
-            SettingsCard(Icons.Filled.Language, tr("Language", "Ngôn ngữ")) {
-                val langs = listOf(
-                    AppLang.SYSTEM to tr("System", "Hệ thống"),
-                    AppLang.ENGLISH to "English",
-                    AppLang.VIETNAMESE to "Tiếng Việt",
-                )
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    langs.forEachIndexed { i, (l, label) ->
-                        SegmentedButton(
-                            selected = Lang.current == l,
-                            onClick = { Lang.set(c, l) },
-                            shape = SegmentedButtonDefaults.itemShape(i, langs.size),
-                        ) { Text(label, maxLines = 1) }
+            item(key = "lang") {
+                SettingsCard(Icons.Filled.Language, tr("Language", "Ngôn ngữ")) {
+                    val langs = listOf(
+                        AppLang.SYSTEM to tr("System", "Hệ thống"),
+                        AppLang.ENGLISH to "English",
+                        AppLang.VIETNAMESE to "Tiếng Việt",
+                    )
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                        langs.forEachIndexed { i, (l, label) ->
+                            SegmentedButton(
+                                selected = Lang.current == l,
+                                onClick = { Lang.set(c, l) },
+                                shape = SegmentedButtonDefaults.itemShape(i, langs.size),
+                            ) { Text(label, maxLines = 1) }
+                        }
                     }
                 }
             }
