@@ -1,0 +1,46 @@
+{
+  "_note": "apkmirror/apkcombo slugs are best-effort; verify with the 'Check slugs' workflow input if a download 404s.",
+  "cli": { "repo": "MorpheApp/morphe-desktop", "asset": "morphe-desktop-*-all.jar" },
+  "downloaders": {
+    "apkmirror": { "repo": "AzimsTech/apkmirror-downloader", "asset": "apkmd" },
+    "apkcombo": { "repo": "nirewen/apkcombo-downloader", "asset": "apkcd-bun-linux-x64" }
+  },
+  "apps": [
+    {
+      "id": "youtube", "name": "YouTube", "package": "com.google.android.youtube",
+      "bundle_repo": "MorpheApp/morphe-patches", "bundle_asset": "patches-*.mpp",
+      "apkmirror": { "org": "google-inc", "repo": "youtube" },
+      "apkcombo": { "org": "youtube", "repo": "com.google.android.youtube" }
+    },
+    {
+      "id": "google-photos", "name": "Google Photos", "package": "com.google.android.apps.photos",
+      "bundle_repo": "Akash-Sriram/morphe-google-photos", "bundle_asset": "patches-*.mpp",
+      "apkmirror": { "org": "google-inc", "repo": "google-photos" },
+      "apkcombo": { "org": "google-photos", "repo": "com.google.android.apps.photos" }
+    },
+    {
+      "id": "tiktok", "name": "TikTok", "package": "com.zhiliaoapp.musically",
+      "bundle_repo": "SysAdminDoc/HushFeed", "bundle_asset": "patches-*.mpp",
+      "apkmirror": { "org": "tiktok-pte-ltd", "repo": "tik-tok" },
+      "apkcombo": { "org": "tiktok", "repo": "com.zhiliaoapp.musically" }
+    },
+    {
+      "id": "facebook", "name": "Facebook", "package": "com.facebook.katana",
+      "bundle_repo": "SysAdminDoc/HushFacebook", "bundle_asset": "patches-*.mpp",
+      "apkmirror": { "org": "facebook-2", "repo": "facebook" },
+      "apkcombo": { "org": "facebook", "repo": "com.facebook.katana" }
+    },
+    {
+      "id": "messenger", "name": "Messenger", "package": "com.facebook.orca",
+      "bundle_repo": "SysAdminDoc/HushMessenger", "bundle_asset": "patches-*.mpp",
+      "apkmirror": { "org": "facebook-2", "repo": "messenger" },
+      "apkcombo": { "org": "messenger", "repo": "com.facebook.orca" }
+    },
+    {
+      "id": "instagram", "name": "Instagram", "package": "com.instagram.android",
+      "bundle_repo": "SysAdminDoc/HushGram", "bundle_asset": "patches-*.mpp",
+      "apkmirror": { "org": "instagram", "repo": "instagram-instagram" },
+      "apkcombo": { "org": "instagram", "repo": "com.instagram.android" }
+    }
+  ]
+}

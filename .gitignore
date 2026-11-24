@@ -1,0 +1,12 @@
+build/
+.gradle/
+local.properties
+*.jks
+*.keystore
+work/
+out/
+prev/
+artifacts/
+release/
+tools/
+__pycache__/
