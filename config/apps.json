@@ -136,8 +136,10 @@
       "bundle_repo": "ImNoammm/Noams-Morphe-Patches",
       "bundle_asset": "noams-morphe-patches-*.mpp",
       "apkmirror": {
-        "org": "hungry-studio",
-        "repo": "block-blast"
+        "org": "hungrystudio",
+        "repo": "block-blast-puzzle-games",
+        "release": "block-blast",
+        "arch": "arm64-v8a"
       },
       "apkcombo": {
         "org": "block-blast",

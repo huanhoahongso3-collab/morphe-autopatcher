@@ -99,7 +99,8 @@ def _download_stock(app, version, vcode, work, dl_tools):
             for n in range(2):
                 spec = {"options": {"outDir": str(dl), "overwrite": True},
                         "apps": [{"org": src["org"], "repo": src["repo"], "version": version,
-                                  "outFile": app["id"], "type": typ}]}
+                                  "outFile": app["id"], "type": typ,
+                                  **({"arch": src["arch"]} if src.get("arch") else {})}]}
                 cfg = Path(work) / f"{tool}.json"
                 _fresh(dl)
                 cfg.write_text(json.dumps(spec))
