@@ -31,7 +31,13 @@ def main():
 
     html = follow.open(urllib.request.Request(page, headers={"User-Agent": UA}), timeout=60).read().decode("utf8", "replace")
     ver = re.search(r'ak-card__h[^>]*>.*?<bdi dir="ltr">([\d.]+)</bdi>', html, re.S)
-    ver = ver.group(1) if ver else re.search(r'title="([\d.]{5,})"', html).group(1)
+    if ver:
+        ver = ver.group(1)
+    else:
+        m = re.search(r'<bdi dir="ltr">(\d[^<]*)</bdi>', html) or re.search(r'title="([\d.]{4,})"', html)
+        if not m:
+            sys.exit("apkcombo: could not read the app version from the page")
+        ver = m.group(1)
     print(f"apkcombo: {a.package} {ver}", flush=True)
     if a.version and ver != a.version:
         sys.exit(f"apkcombo has {ver}, wanted {a.version}")
