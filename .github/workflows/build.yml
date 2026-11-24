@@ -64,7 +64,9 @@ jobs:
           gh release download -R kiber-io/apkdgo --pattern 'apkd-*-linux-amd64' --dir tools
           mv tools/apkd-*-linux-amd64 tools/apkd
           gh release download -R AzimsTech/apkmirror-downloader --pattern apkmd --dir tools
-          chmod +x tools/apkd tools/apkmd
+          gh release download -R EFForg/apkeep --pattern apkeep-x86_64-unknown-linux-gnu --dir tools
+          mv tools/apkeep-x86_64-unknown-linux-gnu tools/apkeep
+          chmod +x tools/apkd tools/apkmd tools/apkeep
 
       - name: Patch apps
         run: |
@@ -76,7 +78,7 @@ jobs:
             python3 scripts/build_app.py --app "$id" --out "artifacts/app-$id" \
               --work "work/$id" --prev prev/versions.json \
               --cli tools/morphe.jar --editor tools/apkeditor.jar \
-              --apkd tools/apkd --apkmd tools/apkmd \
+              --apkd tools/apkd --apkeep tools/apkeep --apkmd tools/apkmd \
               ${{ inputs.force && '--force' || '' }} || true
             cat "artifacts/app-$id/status.json" 2>/dev/null || true
             echo "::endgroup::"
