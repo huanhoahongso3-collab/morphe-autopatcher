@@ -8,7 +8,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class UiState(val loading: Boolean = true, val items: List<Item> = emptyList(), val error: String? = null)
+data class UiState(
+    val loading: Boolean = true,
+    val items: List<Item> = emptyList(),
+    val error: String? = null,
+    val conflict: Item? = null,   // installed copy has a different signature -> ask to uninstall first
+)
 
 class UpdaterViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(UiState())
@@ -35,15 +40,26 @@ class UpdaterViewModel(app: Application) : AndroidViewModel(app) {
             runCatching {
                 val file = Repository.download(ctx, item) { p -> patch(item.id) { it.copy(progress = p) } }
                 patch(item.id) { it.copy(progress = -1f) }
-                Installer.install(ctx, item.id, file) { ok, msg ->
+                Installer.install(ctx, item.id, file) { ok, msg, status ->
                     if (ok) {
                         (item.availablePatches ?: item.availableApp).let { Repository.savePatches(ctx, item.id, it) }
                         refresh()
-                    } else patch(item.id) { it.copy(progress = null, error = msg ?: "install failed") }
+                    } else {
+                        // Same package already installed but signed with another key (e.g. the stock app).
+                        val m = (msg ?: "").lowercase()
+                        val conflict = item.installedApp != null && item.kind != Kind.MANAGER &&
+                            (status == android.content.pm.PackageInstaller.STATUS_FAILURE_CONFLICT ||
+                                status == android.content.pm.PackageInstaller.STATUS_FAILURE_INCOMPATIBLE ||
+                                "signature" in m || "certificate" in m || "incompatible" in m)
+                        patch(item.id) { it.copy(progress = null, error = if (conflict) null else msg ?: "install failed") }
+                        if (conflict) _state.update { it.copy(conflict = item) }
+                    }
                 }
             }.onFailure { e -> patch(item.id) { it.copy(progress = null, error = e.message) } }
         }
     }
+
+    fun dismissConflict() = _state.update { it.copy(conflict = null) }
 
     fun updateAll() = _state.value.items
         .filter { it.status == Status.UPDATE && it.kind != Kind.MANAGER && it.progress == null }

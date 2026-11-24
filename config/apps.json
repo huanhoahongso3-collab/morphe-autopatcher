@@ -112,6 +112,51 @@
         "repo": "com.instagram.android"
       },
       "any_version": true
+    },
+    {
+      "id": "zalo",
+      "name": "Zalo",
+      "package": "com.zing.zalo",
+      "bundle_repo": "zeldrisho/morphe-patches",
+      "bundle_asset": "patches-*.mpp",
+      "apkmirror": {
+        "org": "vng-corp",
+        "repo": "zalo"
+      },
+      "apkcombo": {
+        "org": "zalo-app",
+        "repo": "com.zing.zalo"
+      }
+    },
+    {
+      "id": "block-blast",
+      "name": "Block Blast!",
+      "package": "com.block.juggle",
+      "bundle_repo": "ImNoammm/Noams-Morphe-Patches",
+      "bundle_asset": "noams-morphe-patches-*.mpp",
+      "apkmirror": {
+        "org": "hungry-studio",
+        "repo": "block-blast"
+      },
+      "apkcombo": {
+        "org": "block-blast",
+        "repo": "com.block.juggle"
+      }
+    },
+    {
+      "id": "capcut",
+      "name": "CapCut",
+      "package": "com.lemon.lvoverseas",
+      "bundle_repo": "kveld9/kveld-extra-morphe-patches",
+      "bundle_asset": "patches-*.mpp",
+      "apkmirror": {
+        "org": "bytedance-pte-ltd",
+        "repo": "capcut"
+      },
+      "apkcombo": {
+        "org": "capcut-video-editor",
+        "repo": "com.lemon.lvoverseas"
+      }
     }
   ]
 }

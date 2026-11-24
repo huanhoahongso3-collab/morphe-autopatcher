@@ -53,10 +53,42 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
     }
     val pending = st.items.count { it.status == Status.UPDATE && it.kind != Kind.MANAGER }
 
+    // Re-check after the user comes back (e.g. from the system uninstall screen).
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(owner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) vm.refresh()
+        }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
+
+    st.conflict?.let { c ->
+        AlertDialog(
+            onDismissRequest = vm::dismissConflict,
+            title = { Text("Different signature") },
+            text = {
+                Text(
+                    "${c.name} is already installed but was signed with a different key " +
+                        "(for example the stock app from the store), so Android refuses to update it in place.\n\n" +
+                        "Uninstall the old app first, then tap Install again.\n\n" +
+                        "Warning: uninstalling deletes that app's data.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.dismissConflict()
+                    ctx.startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:${c.pkg}")))
+                }) { Text("Uninstall") }
+            },
+            dismissButton = { TextButton(onClick = vm::dismissConflict) { Text("Cancel") } },
+        )
+    }
+
     Scaffold(
         topBar = {
-            LargeTopAppBar(
-                title = { Text("App Updater") },
+            TopAppBar(
+                title = { Text("App Updater", style = MaterialTheme.typography.titleLarge) },
                 actions = { IconButton(onClick = vm::refresh) { Icon(Icons.Filled.Refresh, "Refresh") } },
             )
         },

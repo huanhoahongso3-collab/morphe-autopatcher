@@ -13,7 +13,7 @@ object Installer {
     private const val ACTION = "dhp.morphe.updater.INSTALL_RESULT"
 
     /** Installs [apk] via PackageInstaller. [onDone] gets (success, message). */
-    fun install(ctx: Context, id: String, apk: File, onDone: (Boolean, String?) -> Unit) {
+    fun install(ctx: Context, id: String, apk: File, onDone: (Boolean, String?, Int) -> Unit) {
         val pi = ctx.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
         if (Build.VERSION.SDK_INT >= 31) params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
@@ -30,10 +30,14 @@ object Installer {
                             confirm?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             c.startActivity(confirm)
                         }
-                        PackageInstaller.STATUS_SUCCESS -> { c.unregisterReceiver(this); apk.delete(); onDone(true, null) }
+                        PackageInstaller.STATUS_SUCCESS -> { c.unregisterReceiver(this); apk.delete(); onDone(true, null, 0) }
                         else -> {
                             c.unregisterReceiver(this)
-                            onDone(false, intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE))
+                            onDone(
+                                false,
+                                intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE),
+                                intent.getIntExtra(PackageInstaller.EXTRA_STATUS, -1),
+                            )
                         }
                     }
                 }
