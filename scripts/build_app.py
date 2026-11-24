@@ -115,11 +115,11 @@ def _download_stock(app, version, vcode, work, dl_tools):
         return f, "apkmirror"
 
     # 1c) Google Play via gplaydl (needs GPLAYDL_API_KEY). The version always follows the patch bundle:
-    #     known version code first, otherwise codes derived from the version name (10.8.1 -> 1081x),
-    #     and every download is checked against the wanted versionName before it is accepted.
+    #     exact version code only (bundle or config version_codes), and every download is checked against the wanted versionName before it is accepted.
     if os.environ.get("GPLAYDL_API_KEY"):
-        digits = "".join(re.findall(r"\d+", version))
-        cands = ([str(vcode)] if vcode else []) + [digits] + [digits + str(i) for i in range(10)]
+        # exact version code: from the bundle (list-versions) or the config's version_codes; never guessed
+        code0 = vcode or app.get("version_codes", {}).get(version)
+        cands = [str(code0)] if code0 else []
         tried = set()
         for code in cands:
             if code in tried:

@@ -142,6 +142,9 @@
       "apkcombo": {
         "org": "block-blast",
         "repo": "com.block.juggle"
+      },
+      "version_codes": {
+        "10.8.1": 10810
       }
     },
     {
@@ -157,6 +160,9 @@
       "apkcombo": {
         "org": "capcut-video-editor",
         "repo": "com.lemon.lvoverseas"
+      },
+      "version_codes": {
+        "20.0.0": 20001600
       }
     }
   ]
