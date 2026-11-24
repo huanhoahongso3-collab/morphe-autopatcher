@@ -4,11 +4,28 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- download arrow into a tray, inside the adaptive-icon safe zone -->
+    <!-- two chasing "refresh" arrows = keeps your apps up to date -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M50,28h8v22h10L54,66L40,50h10z" />
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:pathData="M54,31A23,23 0 0 1 77,54" />
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M36,72h36v6H36z" />
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M70.5,52.5h13l-6.5,9z" />
+    <path
+        android:strokeColor="#FFA7FFD6"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:pathData="M54,77A23,23 0 0 1 31,54" />
+    <path
+        android:fillColor="#FFA7FFD6"
+        android:pathData="M24.5,55.5h13l-6.5,-9z" />
+    <!-- download arrow into a tray in the middle = fetch + install -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M51,42h6v10h5l-8,9l-8,-9h5z" />
+    <path
+        android:fillColor="#FFFFE066"
+        android:pathData="M44,64h20v4h-20z" />
 </vector>

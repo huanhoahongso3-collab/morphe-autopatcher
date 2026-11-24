@@ -11,6 +11,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -68,7 +77,7 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
     }
 
     var showSettings by remember { mutableStateOf(false) }
-    if (showSettings) SettingsDialog(st, vm) { showSettings = false }
+    if (showSettings) SettingsSheet(st, vm) { showSettings = false }
 
     st.conflict?.let { c ->
         AlertDialog(
@@ -117,15 +126,21 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
                 st.note?.let { item { Text(it, style = MaterialTheme.typography.bodyMedium) } }
                 items(st.items, key = { it.id }) { ItemCard(it, onAction = { vm.update(it) }) }
                 item {
-                    Text(
-                        "GitHub: ${BuildConfig.GITHUB_REPO}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp).clickable {
+                    Column(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        FilledTonalButton(onClick = {
                             ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/${BuildConfig.GITHUB_REPO}")))
-                        },
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    )
+                        }) {
+                            Icon(painterResource(R.drawable.ic_github), null, Modifier.size(ButtonDefaults.IconSize))
+                            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                            Text(BuildConfig.GITHUB_REPO)
+                        }
+                        Text(
+                            tr("Open source on GitHub", "Mã nguồn mở trên GitHub"),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
                 }
             }
         }
@@ -190,60 +205,110 @@ private fun versionLine(label: String, old: String?, new: String) =
     if (old == null || old == new) "$label  $new" else "$label  $old → $new"
 
 @Composable
-private fun SettingsDialog(st: UiState, vm: UpdaterViewModel, onClose: () -> Unit) {
+private fun SettingsSheet(st: UiState, vm: UpdaterViewModel, onClose: () -> Unit) {
+    val c = LocalContext.current
     val privOk = st.mode != InstallMode.NORMAL
-    AlertDialog(
-        onDismissRequest = onClose,
-        title = { Text(tr("Settings", "Cài đặt")) },
-        text = {
-            Column(
-                Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(tr("Install mode", "Chế độ cài đặt"), style = MaterialTheme.typography.titleSmall)
-                ModeRow(tr("Normal (system prompt)", "Thường (hộp thoại hệ thống)"), tr("Android asks to confirm every install.", "Android hỏi xác nhận mỗi lần cài."), st.mode == InstallMode.NORMAL) { vm.setMode(InstallMode.NORMAL) }
-                ModeRow(
-                    "Shizuku",
-                    when {
-                        !st.priv.shizukuRunning -> tr("Shizuku is not running", "Shizuku chưa chạy")
-                        !st.priv.shizukuGranted -> tr("Running - tap to allow access", "Đang chạy - chạm để cấp quyền")
-                        else -> tr("Running and allowed", "Đang chạy và đã cấp quyền")
-                    },
-                    st.mode == InstallMode.SHIZUKU,
-                ) { vm.setMode(InstallMode.SHIZUKU) }
-                ModeRow(
-                    "Root",
-                    if (st.priv.rootAvailable) tr("Root available", "Có root") else tr("Root not available / not granted", "Không có root / chưa cấp quyền"),
-                    st.mode == InstallMode.ROOT,
-                ) { vm.setMode(InstallMode.ROOT) }
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                Text(tr("Language", "Ngôn ngữ"), style = MaterialTheme.typography.titleSmall)
-                val c = LocalContext.current
-                ModeRow(tr("System default", "Mặc định hệ thống"), tr("Vietnamese on a Vietnamese phone, otherwise English.", "Tiếng Việt nếu máy dùng tiếng Việt, ngược lại tiếng Anh."), Lang.current == AppLang.SYSTEM) { Lang.set(c, AppLang.SYSTEM) }
-                ModeRow("English", "", Lang.current == AppLang.ENGLISH) { Lang.set(c, AppLang.ENGLISH) }
-                ModeRow("Tiếng Việt", "", Lang.current == AppLang.VIETNAMESE) { Lang.set(c, AppLang.VIETNAMESE) }
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                SwitchRow(tr("Auto update", "Tự động cập nhật"), tr("Checks twice a week and installs updates silently.", "Kiểm tra 2 lần mỗi tuần và tự cài cập nhật."), st.autoUpdate, privOk) { vm.setAutoUpdate(it) }
-                SwitchRow(tr("Auto update at app startup", "Tự động cập nhật khi mở ứng dụng"), tr("Checks and installs when this app opens.", "Kiểm tra và cài khi mở ứng dụng này."), st.autoUpdateOnStart, privOk) { vm.setAutoUpdateOnStart(it) }
-                if (!privOk) Text(tr("Auto update needs Shizuku or Root mode.", "Tự động cập nhật cần chế độ Shizuku hoặc Root."), style = MaterialTheme.typography.bodySmall)
-            }
-        },
-        confirmButton = { TextButton(onClick = onClose) { Text(tr("Close", "Đóng")) } },
-    )
-}
+    ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(
+            Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(tr("Settings", "Cài đặt"), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
 
-@Composable
-private fun ModeRow(title: String, sub: String, selected: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected = selected, onClick = onClick)
-        Column { Text(title); Text(sub, style = MaterialTheme.typography.bodySmall) }
+            SettingsCard(Icons.Filled.Bolt, tr("Install mode", "Chế độ cài đặt")) {
+                val modes = listOf(
+                    InstallMode.NORMAL to tr("Normal", "Thường"),
+                    InstallMode.SHIZUKU to "Shizuku",
+                    InstallMode.ROOT to "Root",
+                )
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    modes.forEachIndexed { i, (m, label) ->
+                        SegmentedButton(
+                            selected = st.mode == m,
+                            onClick = { vm.setMode(m) },
+                            shape = SegmentedButtonDefaults.itemShape(i, modes.size),
+                        ) { Text(label) }
+                    }
+                }
+                Text(
+                    when (st.mode) {
+                        InstallMode.NORMAL -> tr("Android asks you to confirm every install.", "Android hỏi xác nhận mỗi lần cài.")
+                        InstallMode.SHIZUKU -> when {
+                            !st.priv.shizukuRunning -> tr("Shizuku is not running.", "Shizuku chưa chạy.")
+                            !st.priv.shizukuGranted -> tr("Running - tap Shizuku again to allow access.", "Đang chạy - chạm Shizuku lần nữa để cấp quyền.")
+                            else -> tr("Running and allowed: silent installs.", "Đang chạy và đã cấp quyền: cài im lặng.")
+                        }
+                        InstallMode.ROOT ->
+                            if (st.priv.rootAvailable) tr("Root granted: silent installs.", "Đã có root: cài im lặng.")
+                            else tr("Root not available / not granted.", "Không có root / chưa cấp quyền.")
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            SettingsCard(Icons.Filled.Autorenew, tr("Updates", "Cập nhật")) {
+                SwitchRow(
+                    Icons.Filled.Schedule, tr("Auto update", "Tự động cập nhật"),
+                    tr("Checks twice a week and installs updates silently.", "Kiểm tra 2 lần mỗi tuần và tự cài cập nhật."),
+                    st.autoUpdate, privOk,
+                ) { vm.setAutoUpdate(it) }
+                SwitchRow(
+                    Icons.Filled.RocketLaunch, tr("Auto update at app startup", "Tự động cập nhật khi mở ứng dụng"),
+                    tr("Checks and installs when this app opens.", "Kiểm tra và cài khi mở ứng dụng này."),
+                    st.autoUpdateOnStart, privOk,
+                ) { vm.setAutoUpdateOnStart(it) }
+                if (!privOk) Text(
+                    tr("Needs Shizuku or Root mode.", "Cần chế độ Shizuku hoặc Root."),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            SettingsCard(Icons.Filled.Language, tr("Language", "Ngôn ngữ")) {
+                val langs = listOf(
+                    AppLang.SYSTEM to tr("System", "Hệ thống"),
+                    AppLang.ENGLISH to "English",
+                    AppLang.VIETNAMESE to "Tiếng Việt",
+                )
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    langs.forEachIndexed { i, (l, label) ->
+                        SegmentedButton(
+                            selected = Lang.current == l,
+                            onClick = { Lang.set(c, l) },
+                            shape = SegmentedButtonDefaults.itemShape(i, langs.size),
+                        ) { Text(label, maxLines = 1) }
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun SwitchRow(title: String, sub: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) { Text(title); Text(sub, style = MaterialTheme.typography.bodySmall) }
+private fun SettingsCard(icon: ImageVector, title: String, content: @Composable ColumnScope.() -> Unit) {
+    Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(40.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(icon, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                }
+                Text(title, style = MaterialTheme.typography.titleLarge)
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SwitchRow(icon: ImageVector, title: String, sub: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         Switch(checked = checked && enabled, onCheckedChange = onChange, enabled = enabled)
     }
 }
