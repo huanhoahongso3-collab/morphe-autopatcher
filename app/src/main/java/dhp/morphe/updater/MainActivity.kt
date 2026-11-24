@@ -64,6 +64,15 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
             ctx.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${ctx.packageName}")))
         }
     }
+    // Android 13+: ask once so the update progress notification can be shown.
+    val notifLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ctx.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) notifLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+    }
     val pending = st.items.count { it.status == Status.UPDATE && it.kind != Kind.MANAGER }
 
     // Re-check after the user comes back (e.g. from the system uninstall screen).
@@ -101,7 +110,7 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("App Updater", style = MaterialTheme.typography.titleLarge) },
+                title = { Text(tr("App Updater", "Trình Cập Nhật"), style = MaterialTheme.typography.titleLarge) },
                 actions = {
                     IconButton(onClick = { vm.refreshStatus(); showSettings = true }) { Icon(Icons.Filled.Settings, "Settings") }
                     IconButton(onClick = vm::refresh) { Icon(Icons.Filled.Refresh, "Refresh") }

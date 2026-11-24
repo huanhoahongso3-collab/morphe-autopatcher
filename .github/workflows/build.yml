@@ -2,7 +2,7 @@ name: Build patched apps + manager
 
 on:
   schedule:
-    - cron: "0 3 * * 1,4"   # twice a week (Mon + Thu)
+    - cron: "0 3 * * 1"   # once a week (Monday)
   workflow_dispatch:
     inputs:
       force:

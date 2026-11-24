@@ -47,7 +47,10 @@ object Installer {
                             @Suppress("DEPRECATION")
                             val confirm = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
                             confirm?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            c.startActivity(confirm)
+                            // From the background Android may refuse to open the confirm screen: notify instead.
+                            if (confirm != null) {
+                                try { c.startActivity(confirm) } catch (_: Exception) { Notifier.confirmInstall(c, id, confirm) }
+                            }
                         }
                         PackageInstaller.STATUS_SUCCESS -> { c.unregisterReceiver(this); apk.delete(); onDone(true, null, 0) }
                         else -> {

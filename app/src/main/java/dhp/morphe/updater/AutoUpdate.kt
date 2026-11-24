@@ -13,9 +13,17 @@ object AutoUpdate {
         val items = Repository.check(ctx).filter { it.status == Status.UPDATE }   // CONFLICT items are never touched
         var ok = 0
         for (it in items.sortedBy { i -> if (i.kind == Kind.MANAGER) 1 else 0 }) {
-            val file = runCatching { Repository.download(ctx, it) { } }.getOrNull() ?: continue
+            var lastPct = -1
+            val file = runCatching {
+                Repository.download(ctx, it) { p ->
+                    val pct = (p * 100).toInt()
+                    if (pct != lastPct) { lastPct = pct; Notifier.progress(ctx, it.name, pct) }
+                }
+            }.getOrNull() ?: continue
+            Notifier.progress(ctx, it.name, null)
             val err = Privileged.install(mode, file)
             file.delete()
+            Notifier.finish(ctx, it.name, if (err == null) tr("Updated", "Đã cập nhật") else tr("Install failed", "Cài đặt thất bại"))
             if (err == null) {
                 ok++
                 (it.availablePatches ?: it.availableApp).let { v -> Repository.savePatches(ctx, it.id, v) }

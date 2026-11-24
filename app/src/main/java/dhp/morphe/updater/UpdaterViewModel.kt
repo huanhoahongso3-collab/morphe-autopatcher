@@ -111,16 +111,29 @@ class UpdaterViewModel(app: Application) : AndroidViewModel(app) {
     fun update(item: Item) {
         // The original app (other signature) is installed: never try to install over it, explain first.
         if (item.status == Status.CONFLICT) { _state.update { it.copy(conflict = item) }; return }
-        viewModelScope.launch {
+        // Runs in the process-wide scope + a foreground service: keeps going with the screen closed, shows a notification.
+        UpdateService.begin(ctx)
+        var ended = false
+        fun end() { if (!ended) { ended = true; UpdateService.end(ctx) } }
+        UpdateEngine.scope.launch {
             patch(item.id) { it.copy(progress = 0f, error = null) }
+            var lastPct = -1
             runCatching {
-                val file = Repository.download(ctx, item) { p -> patch(item.id) { it.copy(progress = p) } }
+                val file = Repository.download(ctx, item) { p ->
+                    patch(item.id) { it.copy(progress = p) }
+                    val pct = (p * 100).toInt()
+                    if (pct != lastPct) { lastPct = pct; Notifier.progress(ctx, item.name, pct) }
+                }
                 patch(item.id) { it.copy(progress = -1f) }
+                Notifier.progress(ctx, item.name, null)
                 Installer.install(ctx, item.id, file) { ok, msg, status ->
+                    end()
                     if (ok) {
+                        Notifier.finish(ctx, item.name, tr("Updated", "Đã cập nhật"))
                         (item.availablePatches ?: item.availableApp).let { Repository.savePatches(ctx, item.id, it) }
                         refresh()
                     } else {
+                        Notifier.finish(ctx, item.name, msg ?: tr("Install failed", "Cài đặt thất bại"))
                         // Same package already installed but signed with another key (e.g. the stock app).
                         val m = (msg ?: "").lowercase()
                         val conflict = item.installedApp != null && item.kind != Kind.MANAGER &&
@@ -131,7 +144,11 @@ class UpdaterViewModel(app: Application) : AndroidViewModel(app) {
                         if (conflict) _state.update { it.copy(conflict = item) }
                     }
                 }
-            }.onFailure { e -> patch(item.id) { it.copy(progress = null, error = e.message) } }
+            }.onFailure { e ->
+                end()
+                Notifier.finish(ctx, item.name, e.message ?: tr("Download failed", "Tải thất bại"))
+                patch(item.id) { it.copy(progress = null, error = e.message) }
+            }
         }
     }
 
