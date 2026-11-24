@@ -10,6 +10,7 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,6 +32,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Lang.load(this)
         setContent {
             val dark = isSystemInDarkTheme()
             val scheme = if (Build.VERSION.SDK_INT >= 31) {
@@ -71,19 +73,19 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
     st.conflict?.let { c ->
         AlertDialog(
             onDismissRequest = vm::dismissConflict,
-            title = { Text("Mod not installed") },
+            title = { Text(tr("Mod not installed", "Bản mod chưa được cài")) },
             text = {
                 Text(
-                    "${c.name} was not installed: the app on your phone is the original (signed with a different key), " +
-                        "so Android will not let the mod replace it.\n\n" +
-                        "Uninstall the original app, then install the mod.\n\n" +
-                        "Warning: you will lose that app's data.",
+                    tr("${c.name} was not installed: the app on your phone is the original (signed with a different key), ", "${c.name} chưa được cài: ứng dụng trên máy là bản gốc (ký bằng khóa khác), ") +
+                        tr("so Android will not let the mod replace it.\n\n", "nên Android không cho bản mod ghi đè lên.\n\n") +
+                        tr("Uninstall the original app, then install the mod.\n\n", "Hãy gỡ ứng dụng gốc rồi cài bản mod.\n\n") +
+                        tr("Warning: you will lose that app's data.", "Cảnh báo: bạn sẽ mất dữ liệu của ứng dụng đó."),
                 )
             },
             confirmButton = {
-                TextButton(onClick = { vm.replaceOriginal(c) }) { Text("Uninstall original & install") }
+                TextButton(onClick = { vm.replaceOriginal(c) }) { Text(tr("Uninstall original & install", "Gỡ bản gốc & cài mod")) }
             },
-            dismissButton = { TextButton(onClick = vm::dismissConflict) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = vm::dismissConflict) { Text(tr("Cancel", "Hủy")) } },
         )
     }
 
@@ -101,7 +103,7 @@ fun UpdaterScreen(vm: UpdaterViewModel = viewModel()) {
             if (pending > 0) ExtendedFloatingActionButton(
                 onClick = vm::updateAll,
                 icon = { Icon(Icons.Filled.SystemUpdate, null) },
-                text = { Text("Update all ($pending)") },
+                text = { Text(tr("Update all ($pending)", "Cập nhật tất cả ($pending)")) },
             )
         },
     ) { pad ->
@@ -149,20 +151,20 @@ fun ItemCard(item: Item, onAction: () -> Unit) {
                 when (val p = item.progress) {
                     null -> if (item.status != Status.UP_TO_DATE) {
                         Button(onClick = onAction) {
-                            Text(when (item.status) { Status.NOT_INSTALLED -> "Install"; Status.CONFLICT -> "Replace original"; else -> "Update" })
+                            Text(when (item.status) { Status.NOT_INSTALLED -> tr("Install", "Cài đặt"); Status.CONFLICT -> tr("Replace original", "Thay bản gốc"); else -> tr("Update", "Cập nhật") })
                         }
                     }
                     else -> if (p < 0f) LoadingIndicator(Modifier.size(40.dp))
                 }
             }
-            Text(versionLine("App", item.installedApp, item.availableApp), style = MaterialTheme.typography.bodyMedium)
+            Text(versionLine(tr("App", "Ứng dụng"), item.installedApp, item.availableApp), style = MaterialTheme.typography.bodyMedium)
             item.availablePatches?.let {
-                Text(versionLine("Patches", item.installedPatches, it), style = MaterialTheme.typography.bodyMedium)
+                Text(versionLine(tr("Patches", "Bản vá"), item.installedPatches, it), style = MaterialTheme.typography.bodyMedium)
             }
             if (item.patchesRepo.isNotEmpty()) {
                 val c = LocalContext.current
                 Text(
-                    "Patches from ${item.patchesRepo}",
+                    tr("Patches from ${item.patchesRepo}", "Bản vá từ ${item.patchesRepo}"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable {
@@ -177,11 +179,11 @@ fun ItemCard(item: Item, onAction: () -> Unit) {
 }
 
 private fun statusText(s: Status) = when (s) {
-    Status.NOT_INSTALLED -> "Not installed"
-    Status.UPDATE -> "Update available"
-    Status.UP_TO_DATE -> "Up to date"
-    Status.UNKNOWN -> "Unknown"
-    Status.CONFLICT -> "Mod not installed - the original app is installed (different signature)"
+    Status.NOT_INSTALLED -> tr("Not installed", "Chưa cài đặt")
+    Status.UPDATE -> tr("Update available", "Có bản cập nhật")
+    Status.UP_TO_DATE -> tr("Up to date", "Đã là mới nhất")
+    Status.UNKNOWN -> tr("Unknown", "Không rõ")
+    Status.CONFLICT -> tr("Mod not installed - the original app is installed (different signature)", "Bản mod chưa cài - đang cài bản gốc (khác chữ ký)")
 }
 
 private fun versionLine(label: String, old: String?, new: String) =
@@ -192,32 +194,41 @@ private fun SettingsDialog(st: UiState, vm: UpdaterViewModel, onClose: () -> Uni
     val privOk = st.mode != InstallMode.NORMAL
     AlertDialog(
         onDismissRequest = onClose,
-        title = { Text("Settings") },
+        title = { Text(tr("Settings", "Cài đặt")) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Install mode", style = MaterialTheme.typography.titleSmall)
-                ModeRow("Normal (system prompt)", "Android asks to confirm every install.", st.mode == InstallMode.NORMAL) { vm.setMode(InstallMode.NORMAL) }
+            Column(
+                Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(tr("Install mode", "Chế độ cài đặt"), style = MaterialTheme.typography.titleSmall)
+                ModeRow(tr("Normal (system prompt)", "Thường (hộp thoại hệ thống)"), tr("Android asks to confirm every install.", "Android hỏi xác nhận mỗi lần cài."), st.mode == InstallMode.NORMAL) { vm.setMode(InstallMode.NORMAL) }
                 ModeRow(
                     "Shizuku",
                     when {
-                        !st.priv.shizukuRunning -> "Shizuku is not running"
-                        !st.priv.shizukuGranted -> "Running - tap to allow access"
-                        else -> "Running and allowed"
+                        !st.priv.shizukuRunning -> tr("Shizuku is not running", "Shizuku chưa chạy")
+                        !st.priv.shizukuGranted -> tr("Running - tap to allow access", "Đang chạy - chạm để cấp quyền")
+                        else -> tr("Running and allowed", "Đang chạy và đã cấp quyền")
                     },
                     st.mode == InstallMode.SHIZUKU,
                 ) { vm.setMode(InstallMode.SHIZUKU) }
                 ModeRow(
                     "Root",
-                    if (st.priv.rootAvailable) "Root available" else "Root not available / not granted",
+                    if (st.priv.rootAvailable) tr("Root available", "Có root") else tr("Root not available / not granted", "Không có root / chưa cấp quyền"),
                     st.mode == InstallMode.ROOT,
                 ) { vm.setMode(InstallMode.ROOT) }
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                SwitchRow("Auto update", "Checks twice a week and installs updates silently.", st.autoUpdate, privOk) { vm.setAutoUpdate(it) }
-                SwitchRow("Auto update at app startup", "Checks and installs when this app opens.", st.autoUpdateOnStart, privOk) { vm.setAutoUpdateOnStart(it) }
-                if (!privOk) Text("Auto update needs Shizuku or Root mode.", style = MaterialTheme.typography.bodySmall)
+                Text(tr("Language", "Ngôn ngữ"), style = MaterialTheme.typography.titleSmall)
+                val c = LocalContext.current
+                ModeRow(tr("System default", "Mặc định hệ thống"), tr("Vietnamese on a Vietnamese phone, otherwise English.", "Tiếng Việt nếu máy dùng tiếng Việt, ngược lại tiếng Anh."), Lang.current == AppLang.SYSTEM) { Lang.set(c, AppLang.SYSTEM) }
+                ModeRow("English", "", Lang.current == AppLang.ENGLISH) { Lang.set(c, AppLang.ENGLISH) }
+                ModeRow("Tiếng Việt", "", Lang.current == AppLang.VIETNAMESE) { Lang.set(c, AppLang.VIETNAMESE) }
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                SwitchRow(tr("Auto update", "Tự động cập nhật"), tr("Checks twice a week and installs updates silently.", "Kiểm tra 2 lần mỗi tuần và tự cài cập nhật."), st.autoUpdate, privOk) { vm.setAutoUpdate(it) }
+                SwitchRow(tr("Auto update at app startup", "Tự động cập nhật khi mở ứng dụng"), tr("Checks and installs when this app opens.", "Kiểm tra và cài khi mở ứng dụng này."), st.autoUpdateOnStart, privOk) { vm.setAutoUpdateOnStart(it) }
+                if (!privOk) Text(tr("Auto update needs Shizuku or Root mode.", "Tự động cập nhật cần chế độ Shizuku hoặc Root."), style = MaterialTheme.typography.bodySmall)
             }
         },
-        confirmButton = { TextButton(onClick = onClose) { Text("Close") } },
+        confirmButton = { TextButton(onClick = onClose) { Text(tr("Close", "Đóng")) } },
     )
 }
 

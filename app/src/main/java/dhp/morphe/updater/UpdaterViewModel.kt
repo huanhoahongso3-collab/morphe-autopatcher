@@ -75,9 +75,9 @@ class UpdaterViewModel(app: Application) : AndroidViewModel(app) {
             val n = withContext(Dispatchers.IO) { runCatching { AutoUpdate.runNow(ctx) }.getOrDefault(-1) }
             _state.update {
                 it.copy(note = when {
-                    n < 0 -> "Auto update needs Shizuku or Root (see settings)."
+                    n < 0 -> tr("Auto update needs Shizuku or Root (see settings).", "Tự động cập nhật cần Shizuku hoặc Root (xem cài đặt).")
                     n == 0 -> null
-                    else -> "Auto-installed $n update(s)."
+                    else -> tr("Auto-installed $n update(s).", "Đã tự cài $n bản cập nhật.")
                 })
             }
             runCatching { Repository.check(ctx) }.onSuccess { items -> _state.update { it.copy(items = items) } }
@@ -145,7 +145,7 @@ class UpdaterViewModel(app: Application) : AndroidViewModel(app) {
             viewModelScope.launch {
                 val ok = withContext(Dispatchers.IO) { Privileged.uninstall(mode, item.pkg) }
                 if (ok) update(item.copy(status = Status.NOT_INSTALLED, installedApp = null))
-                else patch(item.id) { it.copy(error = "Could not uninstall the original app.") }
+                else patch(item.id) { it.copy(error = tr("Could not uninstall the original app.", "Không gỡ được ứng dụng gốc.")) }
             }
         } else {
             // System uninstall screen; the list is re-checked when the user comes back.
