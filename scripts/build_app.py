@@ -186,7 +186,7 @@ def _download_stock(app, version, vcode, work, dl_tools):
     if app.get("allow_apkpure") and dl_tools.get("apkeep"):
         for spec in (f"{app['package']}@{version}",):
             f = attempt(f"apkeep/{spec}", [dl_tools["apkeep"], "-a", spec, "-d", "apk-pure",
-                                          "-o", "acknowledge_dangers=true", str(dl)])
+                                          "-o", "acknowledge_dangers=true,arch=arm64-v8a", str(dl)])
             if f:
                 return f, "apkpure"
 
@@ -282,6 +282,14 @@ def main():
         if not stock:
             raise SystemExit("no source could provide any of: " + ", ".join(v for v, _ in cands))
         stock = ensure_apk(stock, work, a.editor)
+        # arm64-v8a is mandatory (other ABIs optional): an app with native libs but no arm64 build is a wrong download
+        with zipfile.ZipFile(stock) as z:
+            abis = {n.split("/")[1] for n in z.namelist() if n.startswith("lib/") and n.count("/") >= 2}
+        if abis and "arm64-v8a" not in abis:
+            for old in glob.glob(str(STOCK_CACHE / f"{app['id']}-*")):
+                os.remove(old)
+            Path("stock-cache.changed").write_text("1")   # persist the purge
+            raise SystemExit(f"base APK has no arm64-v8a libs (only {sorted(abis)}): wrong ABI variant")
         # never patch (or cache) a base APK that is not the version we asked for
         try:
             _, sc, sn = badging(stock)
@@ -291,6 +299,7 @@ def main():
         if bad and not app.get("any_version"):
             for old in glob.glob(str(STOCK_CACHE / f"{app['id']}-*")):
                 os.remove(old)
+            Path("stock-cache.changed").write_text("1")   # persist the purge
             raise SystemExit(f"downloaded base APK is {sn} ({sc}), not the wanted {version}")
 
         patched = str(work / "patched.apk")

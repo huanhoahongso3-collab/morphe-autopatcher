@@ -35,6 +35,7 @@ class UpdaterViewModel(app: Application) : AndroidViewModel(app) {
     val state = _state.asStateFlow()
     private val ctx get() = getApplication<Application>()
     private var startupDone = false
+    private val lastErrors = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     init {
         runCatching {
@@ -58,7 +59,9 @@ class UpdaterViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             runCatching { Repository.check(ctx) }
                 .onSuccess { items ->
-                    _state.update { it.copy(loading = false, items = items) }
+                    // keep the last install error visible instead of wiping it on refresh
+                    val shown = items.map { i -> lastErrors[i.id]?.let { e -> i.copy(error = e) } ?: i }
+                    _state.update { it.copy(loading = false, items = shown) }
                     if (!startupDone) {
                         startupDone = true
                         if (Settings.autoUpdateOnStart(ctx)) runAutoUpdate()
@@ -116,6 +119,7 @@ class UpdaterViewModel(app: Application) : AndroidViewModel(app) {
         var ended = false
         fun end() { if (!ended) { ended = true; UpdateService.end(ctx) } }
         UpdateEngine.scope.launch {
+            lastErrors.remove(item.id)
             patch(item.id) { it.copy(progress = 0f, error = null) }
             var lastPct = -1
             runCatching {
@@ -140,12 +144,15 @@ class UpdaterViewModel(app: Application) : AndroidViewModel(app) {
                             (status == android.content.pm.PackageInstaller.STATUS_FAILURE_CONFLICT ||
                                 status == android.content.pm.PackageInstaller.STATUS_FAILURE_INCOMPATIBLE ||
                                 "signature" in m || "certificate" in m || "incompatible" in m)
-                        patch(item.id) { it.copy(progress = null, error = if (conflict) null else msg ?: "install failed") }
+                        val text = (msg ?: tr("Install failed", "Cài đặt thất bại")) + " (code $status)"
+                        if (!conflict) lastErrors[item.id] = text   // survives refreshes until the next attempt
+                        patch(item.id) { it.copy(progress = null, error = if (conflict) null else text) }
                         if (conflict) _state.update { it.copy(conflict = item) }
                     }
                 }
             }.onFailure { e ->
                 end()
+                lastErrors[item.id] = e.message ?: tr("Download failed", "Tải thất bại")
                 Notifier.finish(ctx, item.name, e.message ?: tr("Download failed", "Tải thất bại"))
                 patch(item.id) { it.copy(progress = null, error = e.message) }
             }
