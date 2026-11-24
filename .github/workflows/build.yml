@@ -68,6 +68,9 @@ jobs:
           mv tools/apkeep-x86_64-unknown-linux-gnu tools/apkeep
           chmod +x tools/apkd tools/apkmd tools/apkeep
 
+      - name: Install justapk
+        run: pip install justapk
+
       - name: Patch apps
         run: |
           IDS=$(jq -r '.apps[].id' config/apps.json)

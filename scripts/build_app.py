@@ -63,6 +63,18 @@ def download_stock(app, version, vcode, work, dl_tools):
                 return found[0], "apkpure"
         except subprocess.CalledProcessError as e:
             errors.append(f"apkeep/{spec}: {e}")
+    # 0b) justapk, restricted to sources without bot protection (Uptodown, APK20)
+    for source in ("uptodown", "apk20"):
+        for extra in (["-v", version], []):
+            shutil.rmtree(dl, ignore_errors=True)
+            dl.mkdir(parents=True, exist_ok=True)
+            try:
+                run(["justapk", "download", app["package"], "-s", source, "-o", str(dl), "--no-convert"] + extra)
+                found = [p for p in glob.glob(str(dl / "*")) if os.path.isfile(p)]
+                if found:
+                    return found[0], source
+            except subprocess.CalledProcessError as e:
+                errors.append(f"justapk/{source}{extra}: {e}")
     # 1) apkdgo (APKPure, then APKCombo) pinned by version code, then unpinned
     for source in ("apkcombo",):
         for pkg in ([f"{app['package']}:{vcode}"] if vcode else []) + [app["package"]]:
