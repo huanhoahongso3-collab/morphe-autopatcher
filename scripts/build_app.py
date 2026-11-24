@@ -101,7 +101,8 @@ def download_stock(app, version, vcode, work, dl_tools):
     slug = (app.get("apkcombo") or {}).get("org")
     if slug:
         f = attempt("apkcombo", [sys.executable, str(Path(__file__).with_name("apkcombo.py")), app["package"],
-                                 "--slug", slug, "--version", version, "--out", str(dl)])
+                                 "--slug", slug, "--version", version, "--min-android", str(app.get("min_android", 0)),
+                                 "--out", str(dl)])
         if f:
             return f, "apkcombo"
 

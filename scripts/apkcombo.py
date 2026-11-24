@@ -20,6 +20,7 @@ def main():
     ap.add_argument("package")
     ap.add_argument("--slug", required=True, help="APKCombo app slug, e.g. facebook")
     ap.add_argument("--version", default="")
+    ap.add_argument("--min-android", type=int, default=0, help="reject builds whose minimum Android is lower")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
@@ -34,6 +35,10 @@ def main():
     print(f"apkcombo: {a.package} {ver}", flush=True)
     if a.version and ver != a.version:
         sys.exit(f"apkcombo has {ver}, wanted {a.version}")
+
+    mn = re.search(r"nu-download-request.*?Android (\d+)(?:\.\d+)?\+", html, re.S)
+    if a.min_android and mn and int(mn.group(1)) < a.min_android:
+        sys.exit(f"apkcombo build is Android {mn.group(1)}+, need Android {a.min_android}+")
 
     token = re.search(r'name="soqplay_download_file" value="([0-9a-f]{64})"', html).group(1)
     want_sha = re.search(r"<dt>SHA-256</dt><dd[^>]*><code>([0-9a-f]{64})</code>", html)

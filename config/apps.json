@@ -79,7 +79,8 @@
       "apkcombo": {
         "org": "facebook",
         "repo": "com.facebook.katana"
-      }
+      },
+      "min_android": 11
     },
     {
       "id": "messenger",
