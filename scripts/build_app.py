@@ -97,6 +97,23 @@ def download_stock(app, version, vcode, work, dl_tools):
     if f:
         return f, "aptoide"
 
+    # 2b) APKCombo (apkcombo.com), plain requests, SHA-256 checked, exact version only
+    slug = (app.get("apkcombo") or {}).get("org")
+    if slug:
+        f = attempt("apkcombo", [sys.executable, str(Path(__file__).with_name("apkcombo.py")), app["package"],
+                                 "--slug", slug, "--version", version, "--out", str(dl)])
+        if f:
+            return f, "apkcombo"
+
+    # 2c) your own uploads: release 'stock-apks' with <id>-<version>.(apk|apkm|xapk|apks)
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    if repo:
+        for ext in ("apkm", "xapk", "apks", "apk"):
+            f = attempt(f"stock-apks/{ext}", ["gh", "release", "download", "stock-apks", "-R", repo,
+                                              "--pattern", f"{app['id']}-{version}.{ext}", "--dir", str(dl)])
+            if f:
+                return f, "stock-apks"
+
     # 3) Uptodown / APK20 via justapk (sources without bot protection)
     for source in ("uptodown", "apk20"):
         for extra in (["-v", version], []):
