@@ -101,7 +101,7 @@ def download_stock(app, version, vcode, work, dl_tools):
     slug = (app.get("apkcombo") or {}).get("org")
     if slug:
         f = attempt("apkcombo", [sys.executable, str(Path(__file__).with_name("apkcombo.py")), app["package"],
-                                 "--slug", slug, "--version", version, "--min-android", str(app.get("min_android", 0)),
+                                 "--slug", slug, "--version", "" if app.get("any_version") else version, "--min-android", str(app.get("min_android", 0)),
                                  "--out", str(dl)])
         if f:
             return f, "apkcombo"
@@ -200,7 +200,7 @@ def main():
         prev = {}
         if os.path.exists(a.prev):
             prev = next((x for x in json.load(open(a.prev)).get("apps", []) if x["id"] == app["id"]), {})
-        if not a.force and prev.get("patchesVersion") == tag and prev.get("appVersion") == version:
+        if not a.force and prev.get("patchesVersion") == tag and (app.get("any_version") or prev.get("appVersion") == version):
             status(status="skipped", reason="no change", patchesVersion=tag, appVersion=version)
             return
 
@@ -219,12 +219,13 @@ def main():
              stock])
 
         pkg, vcode, vname = badging(patched)
-        asset = f"{app['id']}-{version}-patches-{tag.lstrip('v')}.apk"
+        real = vname or version
+        asset = f"{app['id']}-{real}-patches-{tag.lstrip('v')}.apk"
         final = out / asset
         os.replace(patched, final)
         meta = {
             "id": app["id"], "name": app["name"], "package": pkg,
-            "appVersion": version, "appVersionCode": vcode,
+            "appVersion": real, "appVersionCode": vcode,
             "patchesRepo": app["bundle_repo"], "patchesVersion": tag,
             "asset": asset, "sha256": sha256(final), "size": final.stat().st_size,
             "source": provider,

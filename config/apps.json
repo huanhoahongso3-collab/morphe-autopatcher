@@ -110,7 +110,8 @@
       "apkcombo": {
         "org": "instagram",
         "repo": "com.instagram.android"
-      }
+      },
+      "any_version": true
     }
   ]
 }
