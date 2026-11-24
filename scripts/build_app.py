@@ -53,7 +53,7 @@ def download_stock(app, version, vcode, work, dl_tools):
     dl = Path(work) / "dl"
     errors = []
     # 1) apkdgo (APKPure, then APKCombo) pinned by version code, then unpinned
-    for source in ("apkpure", "apkcombo"):
+    for source in ("apkcombo",):
         for pkg in ([f"{app['package']}:{vcode}"] if vcode else []) + [app["package"]]:
             shutil.rmtree(dl, ignore_errors=True)
             dl.mkdir(parents=True, exist_ok=True)
