@@ -145,7 +145,8 @@
       },
       "version_codes": {
         "10.8.1": 10810
-      }
+      },
+      "allow_apkpure": true
     },
     {
       "id": "capcut",
