@@ -33,7 +33,7 @@ def vkey(v):
     return tuple(int(x) for x in re.findall(r"\d+", v))
 
 
-def supported_version(cli_jar, bundle, package):
+def supported_versions(cli_jar, bundle, package):
     out = subprocess.check_output(
         ["java", "-jar", cli_jar, "list-versions", "--patches", bundle, "-f", package], text=True)
     print(out)
@@ -45,8 +45,7 @@ def supported_version(cli_jar, bundle, package):
         found.setdefault(v, "")
     if not found:
         raise SystemExit("could not determine supported versions from list-versions output")
-    best = max(found, key=vkey)
-    return best, found[best]
+    return [(v, found[v]) for v in sorted(found, key=vkey, reverse=True)]
 
 
 def _fresh(dl):
@@ -195,16 +194,32 @@ def main():
     try:
         tag = gh_tag(app["bundle_repo"])
         bundle = gh_download(app["bundle_repo"], app["bundle_asset"], work, tag)
-        version, vcode = (a.version, "") if a.version else supported_version(a.cli, bundle, app["package"])
+        cands = [(a.version, "")] if a.version else supported_versions(a.cli, bundle, app["package"])[:6]
 
         prev = {}
         if os.path.exists(a.prev):
             prev = next((x for x in json.load(open(a.prev)).get("apps", []) if x["id"] == app["id"]), {})
-        if not a.force and prev.get("patchesVersion") == tag and (app.get("any_version") or prev.get("appVersion") == version):
-            status(status="skipped", reason="no change", patchesVersion=tag, appVersion=version)
+        newest = cands[0][0]
+        if not a.force and prev.get("patchesVersion") == tag and (app.get("any_version") or prev.get("appVersion") == newest):
+            status(status="skipped", reason="no change", patchesVersion=tag, appVersion=newest)
             return
+        if not a.force and prev.get("patchesVersion") == tag and prev.get("appVersion"):
+            # same patches: only look at builds newer than what we already ship (never downgrade)
+            cands = [c for c in cands if vkey(c[0]) > vkey(prev["appVersion"])] or cands[:1]
 
-        stock, provider = download_stock(app, version, vcode, work, {"apkeep": a.apkeep, "apkd": a.apkd, "apkmirror": a.apkmd, "apkmirror_orig": a.apkmd_orig})
+        tools = {"apkeep": a.apkeep, "apkd": a.apkd, "apkmirror": a.apkmd, "apkmirror_orig": a.apkmd_orig}
+        stock = provider = None
+        for version, vcode in cands:
+            print(f"::group::try {app['id']} {version}", flush=True)
+            try:
+                stock, provider = download_stock(app, version, vcode, work, tools)
+                print("::endgroup::")
+                break
+            except SystemExit as e:
+                print(f"no source has {version}: {str(e)[:300]}")
+                print("::endgroup::")
+        if not stock:
+            raise SystemExit("no source could provide any of: " + ", ".join(v for v, _ in cands))
         stock = ensure_apk(stock, work, a.editor)
 
         patched = str(work / "patched.apk")
