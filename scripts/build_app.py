@@ -4,7 +4,7 @@
 Writes <out>/status.json  ({"status": "built"|"skipped"|"failed", ...})
 and, when built, <out>/<asset>.apk + <out>/meta.json.
 """
-import argparse, fnmatch, glob, hashlib, json, os, re, shutil, subprocess, sys, zipfile
+import argparse, fnmatch, glob, hashlib, json, os, re, shutil, subprocess, sys, time, zipfile
 from pathlib import Path
 
 
@@ -49,76 +49,76 @@ def supported_version(cli_jar, bundle, package):
     return best, found[best]
 
 
+def _fresh(dl):
+    shutil.rmtree(dl, ignore_errors=True)
+    dl.mkdir(parents=True, exist_ok=True)
+
+
+def _first_file(dl, prefix=""):
+    found = [p for p in glob.glob(str(dl / (prefix + "*"))) if os.path.isfile(p)]
+    return found[0] if found else None
+
+
 def download_stock(app, version, vcode, work, dl_tools):
+    """Try sources in order; APKMirror clients first, other stores as fallbacks."""
     dl = Path(work) / "dl"
     errors = []
-    # 0a) Aptoide public API: exact version match only, md5-verified
-    shutil.rmtree(dl, ignore_errors=True)
-    dl.mkdir(parents=True, exist_ok=True)
-    try:
-        run([sys.executable, str(Path(__file__).with_name("aptoide.py")), app["package"],
-             "--version", version, "--out", str(dl)])
-        found = [p for p in glob.glob(str(dl / "*")) if os.path.isfile(p)]
-        if found:
-            return found[0], "aptoide"
-    except subprocess.CalledProcessError as e:
-        errors.append(f"aptoide: {e}")
-    # 0) apkeep (EFF) from APKPure, pinned by version name, then latest
-    for spec in (f"{app['package']}@{version}", app["package"]):
-        shutil.rmtree(dl, ignore_errors=True)
-        dl.mkdir(parents=True, exist_ok=True)
+
+    def attempt(label, cmd, prefix=""):
+        _fresh(dl)
         try:
-            run([dl_tools["apkeep"], "-a", spec, "-d", "apk-pure", str(dl)])
-            found = [p for p in glob.glob(str(dl / "*")) if os.path.isfile(p)]
-            if found:
-                return found[0], "apkpure"
+            run(cmd)
         except subprocess.CalledProcessError as e:
-            errors.append(f"apkeep/{spec}: {e}")
-    # 0b) justapk, restricted to sources without bot protection (Uptodown, APK20)
+            errors.append(f"{label}: {e}")
+            return None
+        return _first_file(dl, prefix)
+
+    # 1) APKMirror, two independent clients, normal requests, each retried (it fails at random)
+    src = app["apkmirror"]
+    for tool in ("apkmirror", "apkmirror_orig"):
+        if not dl_tools.get(tool):
+            continue
+        for typ in ("apk", "bundle"):
+            for n in range(2):
+                spec = {"options": {"outDir": str(dl), "overwrite": True},
+                        "apps": [{"org": src["org"], "repo": src["repo"], "version": version,
+                                  "outFile": app["id"], "type": typ}]}
+                cfg = Path(work) / f"{tool}.json"
+                _fresh(dl)
+                cfg.write_text(json.dumps(spec))
+                f = attempt(f"{tool}/{typ}#{n}", [dl_tools[tool], str(cfg)], app["id"])
+                if f:
+                    return f, "apkmirror"
+                time.sleep(5)
+
+    # 2) Aptoide public API (exact version only, md5-verified)
+    f = attempt("aptoide", [sys.executable, str(Path(__file__).with_name("aptoide.py")), app["package"],
+                            "--version", version, "--out", str(dl)])
+    if f:
+        return f, "aptoide"
+
+    # 3) Uptodown / APK20 via justapk (sources without bot protection)
     for source in ("uptodown", "apk20"):
         for extra in (["-v", version], []):
-            shutil.rmtree(dl, ignore_errors=True)
-            dl.mkdir(parents=True, exist_ok=True)
-            try:
-                run(["justapk", "download", app["package"], "-s", source, "-o", str(dl), "--no-convert"] + extra)
-                found = [p for p in glob.glob(str(dl / "*")) if os.path.isfile(p)]
-                if found:
-                    return found[0], source
-            except subprocess.CalledProcessError as e:
-                errors.append(f"justapk/{source}{extra}: {e}")
-    # 1) apkdgo (APKPure, then APKCombo) pinned by version code, then unpinned
-    for source in ("apkcombo",):
-        for pkg in ([f"{app['package']}:{vcode}"] if vcode else []) + [app["package"]]:
-            shutil.rmtree(dl, ignore_errors=True)
-            dl.mkdir(parents=True, exist_ok=True)
-            try:
-                run([dl_tools["apkd"], "-s", source, "-p", pkg, "-O", str(dl), "-F"])
-                found = [p for p in glob.glob(str(dl / "*")) if os.path.isfile(p)]
-                if found:
-                    return found[0], source
-            except subprocess.CalledProcessError as e:
-                errors.append(f"{source}/{pkg}: {e}")
-    # 2) legacy APKMirror downloader (works only where APKMirror allows the client)
-    shutil.rmtree(dl, ignore_errors=True)
-    dl.mkdir(parents=True, exist_ok=True)
-    for provider in ("apkmirror",):
-        src = app[provider]
-        spec = {
-            "options": {"outDir": str(dl), "overwrite": True},
-            "apps": [{"org": src["org"], "repo": src["repo"], "version": version, "outFile": app["id"], "type": "apk"}],
-        }
-        # bundle fallback: a second attempt as bundle if plain apk is unavailable
-        for typ in ("apk", "bundle"):
-            spec["apps"][0]["type"] = typ
-            cfg = Path(work) / f"{provider}.json"
-            cfg.write_text(json.dumps(spec))
-            try:
-                run([dl_tools[provider], str(cfg)])
-                found = [p for p in glob.glob(str(dl / (app["id"] + "*"))) if os.path.isfile(p)]
-                if found:
-                    return found[0], provider
-            except subprocess.CalledProcessError as e:
-                errors.append(f"{provider}/{typ}: {e}")
+            f = attempt(f"justapk/{source}{extra}",
+                        ["justapk", "download", app["package"], "-s", source, "-o", str(dl), "--no-convert"] + extra)
+            if f:
+                return f, source
+
+    # 4) APKPure via apkeep (needs acknowledge_dangers; only when the app config opts in)
+    if app.get("allow_apkpure") and dl_tools.get("apkeep"):
+        for spec in (f"{app['package']}@{version}",):
+            f = attempt(f"apkeep/{spec}", [dl_tools["apkeep"], "-a", spec, "-d", "apk-pure",
+                                          "-o", "acknowledge_dangers=true", str(dl)])
+            if f:
+                return f, "apkpure"
+
+    # 5) apkdgo / APKCombo
+    for pkg in ([f"{app['package']}:{vcode}"] if vcode else []) + [app["package"]]:
+        f = attempt(f"apkdgo/{pkg}", [dl_tools["apkd"], "-s", "apkcombo", "-p", pkg, "-O", str(dl), "-F"])
+        if f:
+            return f, "apkcombo"
+
     raise SystemExit("all downloads failed:\n" + "\n".join(errors))
 
 
@@ -160,6 +160,7 @@ def main():
     ap.add_argument("--apkmd", required=True)
     ap.add_argument("--apkd", required=True)
     ap.add_argument("--apkeep", required=True)
+    ap.add_argument("--apkmd-orig", default="")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--version", default="", help="pin stock app version")
     a = ap.parse_args()
@@ -185,7 +186,7 @@ def main():
             status(status="skipped", reason="no change", patchesVersion=tag, appVersion=version)
             return
 
-        stock, provider = download_stock(app, version, vcode, work, {"apkeep": a.apkeep, "apkd": a.apkd, "apkmirror": a.apkmd})
+        stock, provider = download_stock(app, version, vcode, work, {"apkeep": a.apkeep, "apkd": a.apkd, "apkmirror": a.apkmd, "apkmirror_orig": a.apkmd_orig})
         stock = ensure_apk(stock, work, a.editor)
 
         patched = str(work / "patched.apk")

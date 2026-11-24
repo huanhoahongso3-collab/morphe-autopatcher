@@ -41,7 +41,7 @@
       "bundle_asset": "patches-*.mpp",
       "apkmirror": {
         "org": "google-inc",
-        "repo": "photos"
+        "repo": "google-photos"
       },
       "apkcombo": {
         "org": "google-photos",
