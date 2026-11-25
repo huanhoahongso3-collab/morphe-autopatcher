@@ -90,6 +90,11 @@ object Notifier {
     }
 }
 
+/** True while the UI is visible (installs need it unless Shizuku/Root is used). */
+object AppState {
+    @Volatile var foreground = false
+}
+
 /** Process-wide scope so downloads/installs keep running after the screen is closed. */
 object UpdateEngine {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

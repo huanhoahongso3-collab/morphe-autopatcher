@@ -147,7 +147,16 @@ object Repository {
 
     // ---- download ----
     suspend fun download(ctx: Context, item: Item, onProgress: (Float) -> Unit): File = withContext(Dispatchers.IO) {
-        val out = File(ctx.cacheDir, "${item.id}.apk")
+        // Downloads are kept per version in the cache: a finished-but-not-installed download is reused on the next tap.
+        val dir = File(ctx.cacheDir, "updates").apply { mkdirs() }
+        val out = File(dir, "${item.id}-${item.availableApp}-${item.availablePatches ?: ""}.apk")
+        fun sha(f: File): String {
+            val m = MessageDigest.getInstance("SHA-256")
+            f.inputStream().use { i -> val b = ByteArray(64 * 1024); while (true) { val n = i.read(b); if (n < 0) break; m.update(b, 0, n) } }
+            return m.digest().joinToString("") { b -> "%02x".format(b) }
+        }
+        if (out.exists() && item.sha256 != null && sha(out).equals(item.sha256, true)) { onProgress(1f); return@withContext out }
+        dir.listFiles()?.filter { it.name.startsWith("${item.id}-") }?.forEach { it.delete() }   // drop older versions
         val md = MessageDigest.getInstance("SHA-256")
         http.newCall(Request.Builder().url(item.url).build()).execute().use { r ->
             check(r.isSuccessful) { "HTTP ${r.code}" }

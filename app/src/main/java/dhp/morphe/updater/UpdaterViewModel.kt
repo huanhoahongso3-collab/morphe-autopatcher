@@ -17,6 +17,7 @@ data class UiState(
     val items: List<Item> = emptyList(),
     val error: String? = null,
     val conflict: Item? = null,   // original app with another signature installed -> ask to uninstall it first
+    val uninstallRequest: Item? = null,   // UI should open the system uninstall dialog for this item's package
     val mode: InstallMode = InstallMode.NORMAL,
     val autoUpdate: Boolean = false,
     val autoUpdateOnStart: Boolean = false,
@@ -133,6 +134,16 @@ class UpdaterViewModel(app: Application) : AndroidViewModel(app) {
                     val pct = (p * 100).toInt()
                     if (pct != lastPct) { lastPct = pct; Notifier.progress(ctx, item.name, pct) }
                 }
+                // Nothing can confirm an install while the app is in the background (normal mode): keep the downloaded
+                // file in the cache and let the user finish with one tap when they come back.
+                val mode0 = Settings.mode(ctx)
+                val silent = mode0 != InstallMode.NORMAL && Privileged.usable(mode0)
+                if (!silent && !AppState.foreground) {
+                    end()
+                    Notifier.finish(ctx, item.name, tr("Downloaded - open the app and tap Install", "Đã tải xong - mở ứng dụng và chạm Cài đặt"))
+                    patch(item.id) { it.copy(progress = null) }
+                    return@runCatching
+                }
                 patch(item.id) { it.copy(progress = -1f) }
                 Notifier.progress(ctx, item.name, null)
                 Installer.install(ctx, item.id, file) { ok, msg, status ->
@@ -177,9 +188,22 @@ class UpdaterViewModel(app: Application) : AndroidViewModel(app) {
                 else patch(item.id) { it.copy(error = tr("Could not uninstall the original app.", "Không gỡ được ứng dụng gốc.")) }
             }
         } else {
-            // System uninstall screen; the list is re-checked when the user comes back.
-            ctx.startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:${item.pkg}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            // System uninstall dialog (opened by the screen so it can report back); the install follows automatically.
+            pendingReplace = item
+            _state.update { it.copy(uninstallRequest = item) }
         }
+    }
+
+    private var pendingReplace: Item? = null
+
+    fun clearUninstallRequest() = _state.update { it.copy(uninstallRequest = null) }
+
+    /** The system uninstall dialog closed: if the original app is gone, install the mod right away. */
+    fun afterUninstall() {
+        val item = pendingReplace ?: return
+        pendingReplace = null
+        val gone = try { ctx.packageManager.getPackageInfo(item.pkg, 0); false } catch (_: android.content.pm.PackageManager.NameNotFoundException) { true }
+        if (gone) update(item.copy(status = Status.NOT_INSTALLED, installedApp = null)) else refresh()
     }
 
     fun updateAll() = _state.value.items

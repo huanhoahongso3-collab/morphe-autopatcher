@@ -22,7 +22,7 @@ object AutoUpdate {
             }.getOrNull() ?: continue
             Notifier.progress(ctx, it.name, null)
             val err = Privileged.install(mode, file)
-            file.delete()
+            if (err == null) file.delete()   // keep a failed download cached for a manual retry
             Notifier.finish(ctx, it.name, if (err == null) tr("Updated", "Đã cập nhật") else tr("Install failed", "Cài đặt thất bại"))
             if (err == null) {
                 ok++
